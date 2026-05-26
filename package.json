@@ -1,0 +1,40 @@
+{
+  "name": "@smudge/email-templates",
+  "version": "0.1.0",
+  "description": "Canonical Smudge Artspace transactional email templates (party + class confirmations, branded wrapper, unsubscribe helpers). Consumed by smudge-website and operations-dashboard.",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/drewyd/smudge-email-templates.git"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./branded": {
+      "types": "./src/branded.ts",
+      "default": "./src/branded.ts"
+    },
+    "./unsubscribe": {
+      "types": "./src/unsubscribe.ts",
+      "default": "./src/unsubscribe.ts"
+    },
+    "./party-confirmation": {
+      "types": "./src/party-confirmation.ts",
+      "default": "./src/party-confirmation.ts"
+    },
+    "./class-confirmation": {
+      "types": "./src/class-confirmation.ts",
+      "default": "./src/class-confirmation.ts"
+    }
+  },
+  "files": ["src", "README.md"],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
