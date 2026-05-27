@@ -1,7 +1,7 @@
 {
   "name": "@smudge/email-templates",
-  "version": "0.1.0",
-  "description": "Canonical Smudge Artspace transactional email templates (party + class confirmations, branded wrapper, unsubscribe helpers). Consumed by smudge-website and operations-dashboard.",
+  "version": "0.2.0",
+  "description": "Canonical Smudge Artspace transactional email templates (party + class confirmations, branded wrapper, unsubscribe helpers). Consumed by smudge-website and operations-dashboard. v0.2.0 — templates authored as React components, rendered to HTML strings via renderToStaticMarkup; backward-compatible builder APIs preserved.",
   "private": true,
   "license": "UNLICENSED",
   "repository": {
@@ -17,24 +17,37 @@
       "default": "./src/index.ts"
     },
     "./branded": {
-      "types": "./src/branded.ts",
-      "default": "./src/branded.ts"
+      "types": "./src/branded.tsx",
+      "default": "./src/branded.tsx"
     },
     "./unsubscribe": {
       "types": "./src/unsubscribe.ts",
       "default": "./src/unsubscribe.ts"
     },
     "./party-confirmation": {
-      "types": "./src/party-confirmation.ts",
-      "default": "./src/party-confirmation.ts"
+      "types": "./src/party-confirmation.tsx",
+      "default": "./src/party-confirmation.tsx"
     },
     "./class-confirmation": {
-      "types": "./src/class-confirmation.ts",
-      "default": "./src/class-confirmation.ts"
+      "types": "./src/class-confirmation.tsx",
+      "default": "./src/class-confirmation.tsx"
     }
   },
-  "files": ["src", "README.md"],
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
+  },
   "publishConfig": {
     "access": "restricted"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   }
 }
