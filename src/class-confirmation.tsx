@@ -460,10 +460,21 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             fontWeight: 400,
                             fontSize: "16px",
                             color: COLORS.text,
+                            margin: "0 0 4px",
+                          }}
+                        >
+                          Thanks so much,
+                        </p>
+                        <p
+                          style={{
+                            fontFamily: FONT_STACK,
+                            fontWeight: 400,
+                            fontSize: "16px",
+                            color: COLORS.text,
                             margin: 0,
                           }}
                         >
-                          The Smudge Team
+                          Emma xx
                         </p>
 
                         {/* Unsubscribe footer (compliance) */}
