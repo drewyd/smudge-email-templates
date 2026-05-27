@@ -132,7 +132,11 @@ export function renderEmail(node: React.ReactElement): string {
 
 export interface DetailRowProps {
   label: string;
-  value: string | React.ReactNode;
+  /**
+   * Display value. Strings render as React text nodes (auto-escaped). For
+   * pre-formatted HTML (e.g. lists with <br/>), pass a React node instead.
+   */
+  value: React.ReactNode;
   marginBottom?: boolean;
 }
 
@@ -151,9 +155,7 @@ export function DetailRow({ label, value, marginBottom = true }: DetailRowProps)
         {label}
       </span>
       <br />
-      <span style={{ fontWeight: 400, fontSize: "16px" }}>
-        {typeof value === "string" ? <span dangerouslySetInnerHTML={{ __html: value }} /> : value}
-      </span>
+      <span style={{ fontWeight: 400, fontSize: "16px" }}>{value}</span>
     </div>
   );
 }
