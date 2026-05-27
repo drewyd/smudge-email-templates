@@ -44,6 +44,30 @@ export const FW7 = `${F};font-weight:700`;
 const FONT_STACK = "'Montserrat', Arial, sans-serif";
 const HUB_DISPLAY_STACK = "'Gloock', 'Playfair Display', Georgia, 'Times New Roman', serif";
 
+/**
+ * Shared <style> block injected into both shells. The mobile @media block
+ * tightens padding + font-sizes on phones (<=480px wide) so the 600px
+ * desktop layout doesn't feel cramped after collapsing to viewport width.
+ * `!important` is required to override inline styles since email clients
+ * always favour inline over <style>.
+ */
+const SHELL_CSS =
+  ":root{color-scheme:light;supported-color-schemes:light}" +
+  "body,.bg-w,table,td{background-color:#f0f0f0}" +
+  ".card,.card td{background-color:#ffffff}" +
+  "@media only screen and (max-width:480px){" +
+  "td.m-pad-top{padding:24px 16px 0 !important}" +
+  "td.m-pad-body{padding:0 16px 20px !important}" +
+  "td.m-pad-content{padding:0 16px !important}" +
+  "td.m-pad-signoff{padding:0 16px 10px !important}" +
+  "td.m-pad-signoff-hub{padding:20px 16px 24px !important}" +
+  "td.m-pad-footer{padding:0 16px 24px !important}" +
+  "td.m-nav-cell{padding:0 6px !important}" +
+  "a.m-nav-link{font-size:11px !important;letter-spacing:0.3px !important}" +
+  "h1.m-display{font-size:24px !important;line-height:1.15 !important}" +
+  "h1.m-hub-display{font-size:30px !important;line-height:1.1 !important}" +
+  "}";
+
 export const COLORS = {
   primary: "#ec6f86",
   green: "#099f4a",
@@ -251,11 +275,12 @@ function NavStrip({ links }: { links: NavLink[] }) {
       <tbody>
         <tr>
           {links.map((link) => (
-            <td key={link.href} style={{ padding: "0 14px" }}>
+            <td key={link.href} className="m-nav-cell" style={{ padding: "0 14px" }}>
               <a
                 href={link.href}
                 target="_blank"
                 rel="noreferrer"
+                className="m-nav-link"
                 style={{
                   fontFamily: FONT_STACK,
                   fontSize: "12px",
@@ -319,11 +344,7 @@ export function BrandedShell({ heading, signoff, children }: BrandedShellProps) 
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-        <style
-          dangerouslySetInnerHTML={{
-            __html: ":root{color-scheme:light;supported-color-schemes:light}body,.bg-w,table,td{background-color:#f0f0f0}.card,.card td{background-color:#ffffff}",
-          }}
-        />
+        <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
       </head>
       <body
         style={{
@@ -362,7 +383,7 @@ export function BrandedShell({ heading, signoff, children }: BrandedShellProps) 
                   <tbody>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-top"
                         align="center"
                         style={{ padding: "40px 20px 0", backgroundColor: COLORS.bgCard }}
                       >
@@ -376,11 +397,12 @@ export function BrandedShell({ heading, signoff, children }: BrandedShellProps) 
                     </tr>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-content"
                         align="center"
                         style={{ padding: "0 40px", backgroundColor: COLORS.bgCard }}
                       >
                         <h1
+                          className="m-display"
                           style={{
                             fontFamily: FONT_STACK,
                             fontSize: "28px",
@@ -397,7 +419,7 @@ export function BrandedShell({ heading, signoff, children }: BrandedShellProps) 
                       </td>
                     </tr>
                     <tr>
-                      <td align="center" style={{ padding: "0 40px 10px" }}>
+                      <td className="m-pad-signoff" align="center" style={{ padding: "0 40px 10px" }}>
                         {signoff ? (
                           <p
                             style={{
@@ -487,11 +509,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link href="https://fonts.googleapis.com/css2?family=Gloock&display=swap" rel="stylesheet" />
-        <style
-          dangerouslySetInnerHTML={{
-            __html: ":root{color-scheme:light;supported-color-schemes:light}body,.bg-w,table,td{background-color:#f0f0f0}.card,.card td{background-color:#ffffff}",
-          }}
-        />
+        <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
       </head>
       <body
         style={{
@@ -531,7 +549,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                   <tbody>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-top"
                         align="center"
                         style={{ padding: "40px 20px 0", backgroundColor: COLORS.bgCard }}
                       >
@@ -558,11 +576,12 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                     </tr>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-content"
                         align="center"
                         style={{ padding: "0 40px", backgroundColor: COLORS.bgCard }}
                       >
                         <h1
+                          className="m-hub-display"
                           style={{
                             fontFamily: HUB_DISPLAY_STACK,
                             fontSize: "38px",
@@ -582,7 +601,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                     {signoff ? (
                       <tr>
                         <td
-                          className="card"
+                          className="card m-pad-signoff-hub"
                           align="left"
                           style={{ padding: "24px 40px 32px", backgroundColor: COLORS.bgCard }}
                         >

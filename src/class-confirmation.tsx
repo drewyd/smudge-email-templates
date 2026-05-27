@@ -185,7 +185,16 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
         <meta name="viewport" content="width=device-width,initial-scale=1.0" />
         <style
           dangerouslySetInnerHTML={{
-            __html: ":root{color-scheme:light;supported-color-schemes:light}body,.bg-w,table,td{background-color:#f0f0f0}.card,.card td{background-color:#ffffff}",
+            __html:
+              ":root{color-scheme:light;supported-color-schemes:light}" +
+              "body,.bg-w,table,td{background-color:#f0f0f0}" +
+              ".card,.card td{background-color:#ffffff}" +
+              ".green-hero td{background-color:#099f4a !important}" +
+              "@media only screen and (max-width:480px){" +
+              "td.m-pad-top{padding:24px 16px 0 !important}" +
+              "td.m-pad-body{padding:0 16px 20px !important}" +
+              "td.m-pad-footer{padding:0 16px 24px !important}" +
+              "}",
           }}
         />
       </head>
@@ -226,7 +235,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                   <tbody>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-top"
                         align="center"
                         style={{ padding: "40px 20px 20px", backgroundColor: COLORS.bgCard }}
                       >
@@ -248,24 +257,39 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                     </tr>
                     <tr>
                       <td
-                        className="card"
+                        className="card m-pad-body"
                         align="left"
                         style={{ padding: "0 40px 20px", backgroundColor: COLORS.bgCard }}
                       >
-                        {/* Green hero banner */}
+                        {/*
+                         * Green hero banner. The background must be on the
+                         * inner <td>, not the outer <table>, otherwise the
+                         * shell-level `.card td { background-color:#ffffff }`
+                         * rule paints the inner cell white and the H1's white
+                         * text disappears against it. The .green-hero td
+                         * @media rule above re-enforces the green with
+                         * !important so the cascade can't reset it.
+                         */}
                         <table
+                          className="green-hero"
                           width="100%"
                           cellPadding={0}
                           cellSpacing={0}
                           style={{
-                            background: COLORS.green,
                             borderRadius: "16px",
+                            overflow: "hidden",
                             margin: "0 0 24px",
                           }}
                         >
                           <tbody>
                             <tr>
-                              <td align="center" style={{ padding: "28px 24px" }}>
+                              <td
+                                align="center"
+                                style={{
+                                  padding: "28px 24px",
+                                  backgroundColor: COLORS.green,
+                                }}
+                              >
                                 <h1
                                   style={{
                                     fontFamily: FONT_STACK,
@@ -465,7 +489,11 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                       </td>
                     </tr>
                     <tr>
-                      <td align="center" style={{ padding: "8px 40px 24px" }}>
+                      <td
+                        className="m-pad-footer"
+                        align="center"
+                        style={{ padding: "8px 40px 24px" }}
+                      >
                         <img
                           src={IMG.logoSmall}
                           alt="Smudge Artspace"
