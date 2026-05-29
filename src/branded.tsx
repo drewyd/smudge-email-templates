@@ -260,7 +260,7 @@ const STUDIO_NAV: NavLink[] = [
   { href: `${SITE}/art-classes`, label: "CLASSES", color: COLORS.orange },
   { href: `${SITE}/book/holidays`, label: "HOLIDAY PROGRAMS", color: COLORS.primary },
   { href: `${SITE}/book/parties`, label: "PARTIES", color: COLORS.green },
-  { href: `${SITE}/book/gift-cards`, label: "GIFT CARDS", color: COLORS.berry },
+  { href: `${SITE}/gift-shop`, label: "GIFT CARDS", color: COLORS.berry },
 ];
 
 const HUB_NAV: NavLink[] = [
@@ -331,6 +331,14 @@ function LogoSmall({ alt = "Smudge Artspace" }: { alt?: string }) {
 export interface BrandedShellProps {
   heading: string;
   signoff?: string;
+  /**
+   * When supplied, renders the compliance unsubscribe line in the footer
+   * (below the copyright, after the Emma sign-off). Pass the per-recipient
+   * URL from buildUnsubscribeUrl(). Templates should use this instead of
+   * inlining the unsubscribe line in their children, otherwise it lands
+   * above the "Thanks so much, / Emma" sign-off.
+   */
+  unsubscribeUrl?: string | null;
   children: React.ReactNode;
 }
 
@@ -338,7 +346,7 @@ export interface BrandedShellProps {
  * Full-fat Smudge Studio email shell: logo, multi-colour studio nav,
  * centered <h1> heading, body slot, Emma signature, footer copyright.
  */
-export function BrandedShell({ heading, signoff, children }: BrandedShellProps) {
+export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: BrandedShellProps) {
   return (
     <html>
       <head>
@@ -471,6 +479,26 @@ export function BrandedShell({ heading, signoff, children }: BrandedShellProps) 
                         >
                           © Smudge Artspace 2026. All rights reserved
                         </p>
+                        {unsubscribeUrl ? (
+                          <p
+                            style={{
+                              fontFamily: FONT_STACK,
+                              fontSize: "11px",
+                              color: COLORS.textMuted,
+                              margin: "8px 0 0",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            You received this because you booked with Smudge Artspace.{" "}
+                            <a
+                              href={unsubscribeUrl}
+                              style={{ color: COLORS.textMuted, textDecoration: "underline" }}
+                            >
+                              Unsubscribe
+                            </a>
+                            .
+                          </p>
+                        ) : null}
                       </td>
                     </tr>
                   </tbody>
