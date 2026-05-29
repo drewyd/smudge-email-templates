@@ -798,9 +798,14 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
  *   (party-confirmation v0.1, blueprint emails, stripe-studio inline)
  *   keep working unchanged during the React Email rollout.
  */
-export function emailWrap(heading: string, bodyHtml: string, signoff?: string): string {
+export function emailWrap(
+  heading: string,
+  bodyHtml: string,
+  signoff?: string,
+  unsubscribeUrl?: string | null,
+): string {
   return renderEmail(
-    <BrandedShell heading={heading} signoff={signoff}>
+    <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl}>
       <span dangerouslySetInnerHTML={{ __html: bodyHtml }} />
     </BrandedShell>,
   );
