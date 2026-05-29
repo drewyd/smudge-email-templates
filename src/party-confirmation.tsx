@@ -209,7 +209,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
   const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null);
 
   return (
-    <BrandedShell heading="It's Party Time!" signoff="We can't wait to celebrate with you!">
+    <BrandedShell heading="It's Party Time!" signoff="We can't wait to celebrate with you!" unsubscribeUrl={unsubUrl}>
       <p
         style={{
           fontFamily: FONT_STACK,
@@ -299,23 +299,6 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         </h2>
         <FaqSections />
       </div>
-
-      <p
-        style={{
-          fontFamily: FONT_STACK,
-          fontSize: "11px",
-          color: COLORS.textMuted,
-          margin: "16px 0 0",
-          textAlign: "center",
-          lineHeight: 1.6,
-        }}
-      >
-        You received this because you booked with Smudge Artspace.{" "}
-        <a href={unsubUrl} style={{ color: COLORS.textMuted, textDecoration: "underline" }}>
-          Unsubscribe
-        </a>
-        .
-      </p>
     </BrandedShell>
   );
 }
