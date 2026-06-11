@@ -83,15 +83,23 @@ const FAQ_SECTIONS: FaqSection[] = [
     body: "Your 2-hour party includes guided art activities tailored to your chosen theme, free play time, and time for cake and food. Our team handles everything so you can enjoy the celebration!",
   },
   {
-    title: "6. Catering",
+    title: "6. Catering (Optional)",
     body: (
       <>
-        If you&apos;ve chosen Petite Catering, our caterer Matilda at Mont Albert will be in
-        touch to confirm your order. Contact them directly at{" "}
+        Catering is completely optional, and bringing your own food is always welcome. If
+        you&apos;d like the food taken care of, Petite by Matilda is our favourite local
+        caterer. Have a look at the{" "}
+        <a
+          href="https://www.smudgeartspace.com/book/parties/catering"
+          style={{ color: COLORS.berry }}
+        >
+          catering menu
+        </a>{" "}
+        and email your order directly to{" "}
         <a href="mailto:catering@matildamontalbert.com" style={{ color: COLORS.berry }}>
           catering@matildamontalbert.com
-        </a>
-        .
+        </a>{" "}
+        at least 7 days before the party. There&apos;s a flat $20 delivery fee.
       </>
     ),
   },
