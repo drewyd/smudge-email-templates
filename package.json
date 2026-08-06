@@ -1,7 +1,7 @@
 {
   "name": "@smudge/email-templates",
-  "version": "0.2.7",
-  "description": "Canonical Smudge Artspace transactional email templates (party + class confirmations, branded wrapper, unsubscribe helpers). Consumed by smudge-website and operations-dashboard. v0.2.0 — templates authored as React components, rendered to HTML strings via renderToStaticMarkup; backward-compatible builder APIs preserved.",
+  "version": "0.2.8",
+  "description": "Canonical Smudge Artspace transactional email templates (party + class confirmations, branded wrapper, unsubscribe helpers). Consumed by smudge-website and operations-dashboard. v0.2.0 \u2014 templates authored as React components, rendered to HTML strings via renderToStaticMarkup; backward-compatible builder APIs preserved.",
   "private": true,
   "license": "UNLICENSED",
   "repository": {

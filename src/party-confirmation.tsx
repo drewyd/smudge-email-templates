@@ -64,15 +64,15 @@ interface FaqSection {
 const FAQ_SECTIONS: FaqSection[] = [
   {
     title: "1. Your Party Theme",
-    body: "You can change your theme up to 3 weeks before your party date. Just reply to this email to let us know.",
+    body: "You can change your theme up to a week before your party date. Just reply to this email and we'll swap it over.",
   },
   {
     title: "2. Confirming Guest Numbers",
-    body: "Your party includes up to 12 children. Additional children are $40 each, up to a maximum of 18 kids. Please confirm final numbers at least 1 week before your party.",
+    body: "Your party includes up to 12 children. Extra guests are $40 each, up to a maximum of 20 children in total, including the birthday child. Just let us know your final numbers a week before the party.",
   },
   {
     title: "3. What About Adults?",
-    body: "For children aged 7 and over, it's a drop-off party. For children 6 and under, we ask that at least one parent/guardian stays for the duration. Adults are welcome to relax in our courtyard or grab a coffee across the road.",
+    body: "Whether you stay or drop off is completely up to you. Most families with children 7 and over drop off, and with the younger ones a parent usually stays. You're very welcome to settle into our courtyard or grab a coffee across the road.",
   },
   {
     title: "4. Arrival",
@@ -108,7 +108,8 @@ const FAQ_SECTIONS: FaqSection[] = [
     body: (
       <>
         You&apos;re welcome to bring your own food and birthday cake. Please note we are a{" "}
-        <strong>nut-free</strong> venue. Please bring your own plates, napkins, and a cake knife.
+        <strong>nut-free</strong> venue. We supply the plates, napkins and cake knife, so the food
+        and the cake are all you need to bring.
       </>
     ),
   },
