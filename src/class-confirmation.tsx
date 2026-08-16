@@ -191,7 +191,11 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
               ".card,.card td{background-color:#ffffff}" +
               ".green-hero td{background-color:#099f4a !important}" +
               "@media only screen and (max-width:480px){" +
-              "td.m-pad-top{padding:24px 16px 0 !important}" +
+              // The bottom value is NOT zero. The masthead is the two-line
+              // Smudge Artspace lockup (800x286, ~72px tall at width 200) and
+              // the green hero starts immediately below it, so a zero here put
+              // ARTSPACE against the green box on every phone. Emma, 16 Aug.
+              "td.m-pad-top{padding:24px 16px 24px !important}" +
               "td.m-pad-body{padding:0 16px 20px !important}" +
               "td.m-pad-footer{padding:0 16px 24px !important}" +
               "}",
@@ -237,7 +241,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                       <td
                         className="card m-pad-top"
                         align="center"
-                        style={{ padding: "40px 20px 20px", backgroundColor: COLORS.bgCard }}
+                        style={{ padding: "40px 20px 32px", backgroundColor: COLORS.bgCard }}
                       >
                         <a href={SITE} target="_blank" rel="noreferrer">
                           <img
