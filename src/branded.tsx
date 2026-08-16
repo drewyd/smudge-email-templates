@@ -42,7 +42,12 @@ export const FW4 = `${F};font-weight:400`;
 export const FW7 = `${F};font-weight:700`;
 
 const FONT_STACK = "'Montserrat', Arial, sans-serif";
-const HUB_DISPLAY_STACK = "'Gloock', 'Playfair Display', Georgia, 'Times New Roman', serif";
+// Georgia 700 is the editorial display face (Drew, 13 Aug 2026). This is the
+// surface the change was really for: email clients do not download webfonts, so
+// the Google-hosted serif that used to head this stack never actually rendered
+// in an inbox, it just fell through silently. Georgia is already on the reader's
+// machine. Set 700 at the call site: Georgia ships 400 and 700 only.
+const HUB_DISPLAY_STACK = "Georgia, 'Iowan Old Style', 'Noto Serif', 'Times New Roman', serif";
 
 /**
  * Shared <style> block injected into both shells. The mobile @media block
@@ -523,7 +528,7 @@ export interface HubShellProps {
 }
 
 /**
- * Hub-flavoured email shell: same logo header, Gloock serif heading,
+ * Hub-flavoured email shell: same logo header, Georgia serif heading,
  * berry accent, Hub-specific nav (Themes / Community / Gallery),
  * and richer footer with full address + socials.
  */
@@ -534,9 +539,8 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=Gloock&display=swap" rel="stylesheet" />
+        {/* No webfont link. The heading face is Georgia, a system font, and
+            email clients would not have fetched a webfont anyway. */}
         <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
       </head>
       <body
@@ -613,7 +617,9 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                           style={{
                             fontFamily: HUB_DISPLAY_STACK,
                             fontSize: "38px",
-                            fontWeight: 400,
+                            /* 700: Georgia has 400 and 700 only, and 400 reads
+                               thin at 38px against the Montserrat around it. */
+                            fontWeight: 700,
                             color: COLORS.text,
                             margin: "0 0 20px",
                             lineHeight: 1.1,
