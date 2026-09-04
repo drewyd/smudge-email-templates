@@ -15,7 +15,7 @@ Single source of truth, one package, both repos pull the same code.
 | Path | Purpose |
 |---|---|
 | `@smudge/email-templates/branded` | `emailWrap`, `hubEmailWrap`, `greenCard`, `greyCard`, helpers (`escapeHtml`, `fmtDate`, `fmtTime`, `ordinalSuffix`, `computeAgeAtParty`, `detailRow`), brand constants (`SITE`, `IMG`, `COLORS`, `F`, `FW4`, `FW7`) |
-| `@smudge/email-templates/unsubscribe` | `buildUnsubscribeUrl`, `buildUnsubscribeHeaders`, `unsubscribeFooterHtml`, `UNSUBSCRIBE_FOOTER_HTML` |
+| `@smudge/email-templates/unsubscribe` | `buildUnsubscribeUrl`, `buildUnsubscribeHeaders`, `unsubscribeFooterHtml` |
 | `@smudge/email-templates/party-confirmation` | `buildPartyConfirmationEmail(params)` — returns `{ customerHtml, internalHtml, resolvedAge, customerSubject }` |
 | `@smudge/email-templates/class-confirmation` | `buildClassConfirmationEmail(params)` — returns `{ subject, customerHtml, internalHtml }` |
 

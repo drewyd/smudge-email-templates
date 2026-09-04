@@ -96,8 +96,6 @@ for (const key of Object.keys(noBranding)) {
   if (!(key in baseline)) check(`${key} (unexpected new entry)`, false, "present in render but not in baseline -- add it to the baseline deliberately, don't silently accept");
 }
 
-console.log("");
-console.log("=== Part 1c: shells resolve identity from ENV ALONE, zero caller involvement ===");
 // The whole point of the L15b rework: a frozen call site (the Stripe webhook,
 // create-class-booking.ts, etc.) never passes a `branding` argument at all --
 // it can't, it's frozen. So this sets the SAME env vars each app's own
@@ -114,6 +112,53 @@ const ENV_KEYS = [
   "STUDIO_HELLO_ADDRESS",
 ];
 const savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+
+console.log("");
+console.log("=== Part 1b: partial ENV identity fails closed instead of mixing studios ===");
+for (const k of ENV_KEYS) delete process.env[k];
+process.env.STUDIO_EMAIL_LOGO_URL = WONKY.logoUrl;
+let partialEnvError;
+try {
+  renderFixtures(undefined);
+} catch (error) {
+  partialEnvError = error;
+}
+check(
+  "one configured identity field refuses to render",
+  partialEnvError instanceof Error && partialEnvError.message.includes("Incomplete studio email identity"),
+  partialEnvError ? String(partialEnvError) : "render unexpectedly succeeded with a half-configured identity",
+);
+let explicitAgainstPartialEnv;
+try {
+  explicitAgainstPartialEnv = renderFixtures(WONKY);
+} catch {
+  explicitAgainstPartialEnv = undefined;
+}
+check(
+  "a complete explicit identity bypasses unrelated partial environment state",
+  explicitAgainstPartialEnv?.["branded-shell"].includes(WONKY.logoUrl) &&
+    explicitAgainstPartialEnv?.["unsubscribe-footer-html"].includes(WONKY.unsubscribeDomain),
+  "complete explicit branding was rejected by environment values it did not need",
+);
+for (const k of ENV_KEYS) delete process.env[k];
+process.env.STUDIO_NAME = WONKY.studioName;
+process.env.STUDIO_HELLO_ADDRESS = WONKY.contactEmail;
+let generalStudioEnv;
+try {
+  generalStudioEnv = renderFixtures(undefined);
+} catch {
+  generalStudioEnv = undefined;
+}
+check(
+  "general studio settings alone do not opt into the email identity",
+  generalStudioEnv?.["branded-shell"] === baseline["branded-shell"] &&
+    generalStudioEnv?.["unsubscribe-footer-html"] === baseline["unsubscribe-footer-html"],
+  "STUDIO_NAME or STUDIO_HELLO_ADDRESS alone activated a partial email identity",
+);
+
+console.log("");
+console.log("=== Part 1c: shells resolve identity from ENV ALONE, zero caller involvement ===");
+for (const k of ENV_KEYS) delete process.env[k];
 process.env.STUDIO_NAME = WONKY.studioName;
 process.env.STUDIO_EMAIL_LOGO_URL = WONKY.logoUrl;
 process.env.STUDIO_EMAIL_LOGO_SMALL_URL = WONKY.logoSmallUrl;
@@ -154,6 +199,29 @@ check(
 );
 check("party-confirmation-customer: shows her name via env alone", envOnly["party-confirmation-customer"].includes(WONKY.studioName));
 
+const partialExplicit = renderFixtures({ studioName: "Wonky Comet Workshops" });
+check(
+  "a partial explicit override inherits the coherent environment identity",
+  partialExplicit["branded-shell"].includes("Wonky Comet Workshops") &&
+    partialExplicit["branded-shell"].includes(WONKY.logoUrl) &&
+    partialExplicit["unsubscribe-url-with-email"].includes(WONKY.unsubscribeDomain),
+  "the explicit field caused the remaining identity fields to fall back to Smudge",
+);
+
+console.log("");
+console.log("=== Part 1d: Smudge values supplied through ENV remain byte-identical ===");
+process.env.STUDIO_NAME = SMUDGE_DEFAULTS.studioName;
+process.env.STUDIO_EMAIL_LOGO_URL = SMUDGE_DEFAULTS.logoUrl;
+process.env.STUDIO_EMAIL_LOGO_SMALL_URL = SMUDGE_DEFAULTS.logoSmallUrl;
+process.env.STUDIO_EMAIL_ADDRESS_LINE = SMUDGE_DEFAULTS.addressLineLong;
+process.env.STUDIO_EMAIL_ADDRESS_LINE_COMPACT = SMUDGE_DEFAULTS.addressLineShort;
+process.env.STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN = SMUDGE_DEFAULTS.unsubscribeDomain;
+process.env.STUDIO_HELLO_ADDRESS = SMUDGE_DEFAULTS.contactEmail;
+const smudgeEnv = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(`${key} (Smudge env)`, smudgeEnv[key] === baseline[key], "environment resolution changed Smudge output");
+}
+
 // Restore env exactly as found, then prove Part 1's byte-identical baseline
 // still holds once no STUDIO_* vars are set (Smudge's own production env).
 for (const k of ENV_KEYS) {
@@ -167,7 +235,7 @@ check(
 );
 
 console.log("");
-console.log("=== Part 1b: byte-identical when Smudge's OWN identity is passed explicitly (not omitted) ===");
+console.log("=== Part 1e: byte-identical when Smudge's OWN identity is passed explicitly (not omitted) ===");
 const explicitSmudge = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
 for (const key of Object.keys(baseline)) {
   const same = explicitSmudge[key] === baseline[key];

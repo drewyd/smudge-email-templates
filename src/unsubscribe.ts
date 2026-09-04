@@ -24,10 +24,7 @@
  * customer-facing email footers.
  */
 
-import { COLORS, F, envVar } from "./branded";
-
-const DEFAULT_UNSUBSCRIBE_DOMAIN = "emails.smudgeartspace.com";
-const DEFAULT_STUDIO_NAME = "Smudge Artspace";
+import { COLORS, F, resolveStudioEmailIdentity } from "./branded";
 
 /**
  * Studio branding for the unsubscribe link + compliance footer line. Both
@@ -47,10 +44,8 @@ export interface UnsubscribeBranding {
 }
 
 function unsubscribeBase(branding?: UnsubscribeBranding): string {
-  const domain =
-    branding?.unsubscribeDomain?.trim() ||
-    envVar("STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN") ||
-    DEFAULT_UNSUBSCRIBE_DOMAIN;
+  const domain = branding?.unsubscribeDomain?.trim() ||
+    resolveStudioEmailIdentity(branding).unsubscribeDomain;
   return `https://${domain}/unsubscribe`;
 }
 
@@ -75,10 +70,8 @@ export function buildUnsubscribeHeaders(
   email: string,
   branding?: UnsubscribeBranding,
 ): Record<string, string> {
-  const domain =
-    branding?.unsubscribeDomain?.trim() ||
-    envVar("STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN") ||
-    DEFAULT_UNSUBSCRIBE_DOMAIN;
+  const domain = branding?.unsubscribeDomain?.trim() ||
+    resolveStudioEmailIdentity(branding).unsubscribeDomain;
   const apiUrl = `https://${domain}/api/unsubscribe?email=${encodeURIComponent(
     email.trim().toLowerCase(),
   )}`;
@@ -94,7 +87,8 @@ export function buildUnsubscribeHeaders(
  */
 export function unsubscribeFooterHtml(email?: string | null, branding?: UnsubscribeBranding): string {
   const url = buildUnsubscribeUrl(email, branding);
-  const studioName = branding?.studioName?.trim() || envVar("STUDIO_NAME") || DEFAULT_STUDIO_NAME;
+  const studioName = branding?.studioName?.trim() ||
+    resolveStudioEmailIdentity(branding).studioName;
   return (
     `<p style="${F};font-size:11px;color:${COLORS.textMuted};margin:16px 0 0;text-align:center;line-height:1.6">` +
     `You received this because you booked with ${studioName}. ` +
@@ -102,16 +96,3 @@ export function unsubscribeFooterHtml(email?: string | null, branding?: Unsubscr
     `</p>`
   );
 }
-
-/**
- * Default unsubscribe footer when the recipient email is not in scope at render
- * time. Used by templates that historically did not carry the recipient email
- * through to the renderer.
- *
- * NOTE: this is a MODULE-LOAD-TIME constant, evaluated once when the module
- * is first imported into a given server process -- unlike every function
- * above, it cannot re-read env per request. No live call site currently
- * imports the bare constant (only the function), so this is dormant risk,
- * not an active bug; flagged so it isn't rediscovered as a surprise later.
- */
-export const UNSUBSCRIBE_FOOTER_HTML = unsubscribeFooterHtml(null);

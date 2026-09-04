@@ -125,12 +125,39 @@ export interface StudioBranding {
   addressLine?: string;
 }
 
-const DEFAULT_BRANDING = {
+export interface StudioEmailIdentity extends Required<StudioBranding> {
+  addressLineCompact: string;
+  unsubscribeDomain: string;
+  contactEmail: string;
+}
+
+const DEFAULT_EMAIL_IDENTITY: StudioEmailIdentity = {
   studioName: "Smudge Artspace",
   logoUrl: IMG.logo,
   logoSmallUrl: IMG.logoSmall,
   addressLine: "102 Union Road, Surrey Hills, Victoria, Australia 3127",
+  addressLineCompact: "102 Union Rd, Surrey Hills VIC 3127",
+  unsubscribeDomain: "emails.smudgeartspace.com",
+  contactEmail: "hello@smudgeartspace.com",
+};
+
+const EMAIL_IDENTITY_ENV = {
+  studioName: "STUDIO_NAME",
+  logoUrl: "STUDIO_EMAIL_LOGO_URL",
+  logoSmallUrl: "STUDIO_EMAIL_LOGO_SMALL_URL",
+  addressLine: "STUDIO_EMAIL_ADDRESS_LINE",
+  addressLineCompact: "STUDIO_EMAIL_ADDRESS_LINE_COMPACT",
+  unsubscribeDomain: "STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN",
+  contactEmail: "STUDIO_HELLO_ADDRESS",
 } as const;
+
+const EMAIL_IDENTITY_OPT_IN_FIELDS: ReadonlyArray<keyof StudioEmailIdentity> = [
+  "logoUrl",
+  "logoSmallUrl",
+  "addressLine",
+  "addressLineCompact",
+  "unsubscribeDomain",
+];
 
 /**
  * Read a trimmed, non-empty env var, or undefined. Guarded for the browser
@@ -153,13 +180,68 @@ export function envVar(name: string): string | undefined {
  * BrandedShell/emailWrap/etc, with no branding argument, already resolve
  * her identity through this).
  */
-function envBranding(): StudioBranding {
-  return {
-    studioName: envVar("STUDIO_NAME"),
-    logoUrl: envVar("STUDIO_EMAIL_LOGO_URL"),
-    logoSmallUrl: envVar("STUDIO_EMAIL_LOGO_SMALL_URL"),
-    addressLine: envVar("STUDIO_EMAIL_ADDRESS_LINE"),
-  };
+function emailIdentityFromEnv(): StudioEmailIdentity | undefined {
+  const values = Object.fromEntries(
+    Object.entries(EMAIL_IDENTITY_ENV).map(([field, envName]) => [field, envVar(envName)]),
+  ) as Partial<StudioEmailIdentity>;
+  const configured = EMAIL_IDENTITY_OPT_IN_FIELDS.filter((field) => values[field]).length;
+  if (configured === 0) return undefined;
+
+  const missing = Object.entries(EMAIL_IDENTITY_ENV)
+    .filter(([field]) => !values[field as keyof StudioEmailIdentity])
+    .map(([, envName]) => envName);
+  if (missing.length > 0) {
+    throw new Error(
+      `Incomplete studio email identity: set all STUDIO email identity variables together (missing ${missing.join(", ")})`,
+    );
+  }
+
+  return values as StudioEmailIdentity;
+}
+
+/**
+ * Resolve one coherent email identity. An omitted object may activate the
+ * deployment's STUDIO_* identity, but that environment identity is accepted
+ * only when all seven fields are present. This prevents a half-configured
+ * clone from silently sending an email containing two studios' details.
+ */
+export function resolveStudioEmailIdentity(
+  branding?: Partial<StudioEmailIdentity>,
+): StudioEmailIdentity {
+  if (
+    branding?.studioName?.trim() &&
+    branding.logoUrl?.trim() &&
+    branding.logoSmallUrl?.trim() &&
+    branding.addressLine?.trim() &&
+    branding.addressLineCompact?.trim() &&
+    branding.unsubscribeDomain?.trim() &&
+    branding.contactEmail?.trim()
+  ) {
+    return {
+      studioName: branding.studioName.trim(),
+      logoUrl: branding.logoUrl.trim(),
+      logoSmallUrl: branding.logoSmallUrl.trim(),
+      addressLine: branding.addressLine.trim(),
+      addressLineCompact: branding.addressLineCompact.trim(),
+      unsubscribeDomain: branding.unsubscribeDomain.trim(),
+      contactEmail: branding.contactEmail.trim(),
+    };
+  }
+
+  const base = emailIdentityFromEnv() || DEFAULT_EMAIL_IDENTITY;
+  if (branding !== undefined) {
+    return {
+      studioName: branding.studioName?.trim() || base.studioName,
+      logoUrl: branding.logoUrl?.trim() || base.logoUrl,
+      logoSmallUrl: branding.logoSmallUrl?.trim() || base.logoSmallUrl,
+      addressLine: branding.addressLine?.trim() || base.addressLine,
+      addressLineCompact: branding.addressLineCompact?.trim() || base.addressLineCompact,
+      unsubscribeDomain: branding.unsubscribeDomain?.trim() || base.unsubscribeDomain,
+      contactEmail: branding.contactEmail?.trim() || base.contactEmail,
+    };
+  }
+
+  return base;
 }
 
 /**
@@ -169,12 +251,26 @@ function envBranding(): StudioBranding {
  * picks up her identity automatically), then Smudge's own literal default.
  */
 export function resolveBranding(branding?: StudioBranding): Required<StudioBranding> {
-  const env = envBranding();
+  if (
+    branding?.studioName?.trim() &&
+    branding.logoUrl?.trim() &&
+    branding.logoSmallUrl?.trim() &&
+    branding.addressLine?.trim()
+  ) {
+    return {
+      studioName: branding.studioName.trim(),
+      logoUrl: branding.logoUrl.trim(),
+      logoSmallUrl: branding.logoSmallUrl.trim(),
+      addressLine: branding.addressLine.trim(),
+    };
+  }
+
+  const identity = resolveStudioEmailIdentity(branding);
   return {
-    studioName: branding?.studioName?.trim() || env.studioName || DEFAULT_BRANDING.studioName,
-    logoUrl: branding?.logoUrl?.trim() || env.logoUrl || DEFAULT_BRANDING.logoUrl,
-    logoSmallUrl: branding?.logoSmallUrl?.trim() || env.logoSmallUrl || DEFAULT_BRANDING.logoSmallUrl,
-    addressLine: branding?.addressLine?.trim() || env.addressLine || DEFAULT_BRANDING.addressLine,
+    studioName: identity.studioName,
+    logoUrl: identity.logoUrl,
+    logoSmallUrl: identity.logoSmallUrl,
+    addressLine: identity.addressLine,
   };
 }
 

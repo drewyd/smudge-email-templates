@@ -21,11 +21,11 @@ import {
   COLORS,
   IMG,
   SITE,
-  envVar,
   fmtDate,
   fmtTime,
   renderEmail,
   resolveBranding,
+  resolveStudioEmailIdentity,
 } from "./branded";
 import type { StudioBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
@@ -226,13 +226,10 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
   const giftCard = resolveGiftCard(params);
   const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, branding);
   const b = resolveBranding(branding);
-  const footerAddressLine =
-    branding?.addressLineCompact?.trim() ||
-    envVar("STUDIO_EMAIL_ADDRESS_LINE_COMPACT") ||
-    FOOTER_ADDRESS_FALLBACK;
+  const identity = resolveStudioEmailIdentity(branding);
+  const footerAddressLine = identity.addressLineCompact || FOOTER_ADDRESS_FALLBACK;
   const logoSmallSrc = b.logoSmallUrl;
-  const contactEmail =
-    branding?.contactEmail?.trim() || envVar("STUDIO_HELLO_ADDRESS") || CONTACT_EMAIL_FALLBACK;
+  const contactEmail = identity.contactEmail || CONTACT_EMAIL_FALLBACK;
 
   return (
     <html>
