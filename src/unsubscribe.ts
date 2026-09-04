@@ -24,19 +24,20 @@
  * customer-facing email footers.
  */
 
-import { COLORS, F } from "./branded";
+import { COLORS, F, envVar } from "./branded";
 
 const DEFAULT_UNSUBSCRIBE_DOMAIN = "emails.smudgeartspace.com";
 const DEFAULT_STUDIO_NAME = "Smudge Artspace";
 
 /**
  * Studio branding for the unsubscribe link + compliance footer line. Both
- * fields are optional; omitting them reproduces exactly what this module
- * shipped before branding existed, so every Smudge call site (none of which
- * pass this) stays byte-identical. A clone's caller passes its own studio's
- * unsubscribe domain (her own alias of her Vercel project, e.g.
- * emails.withsmock.com) and studio name, normally read from that app's
- * `src/lib/studio/identity.ts`.
+ * fields are optional and are checked in this order: an explicit `branding`
+ * argument (a non-frozen caller's deliberate override) first, then the SAME
+ * env vars each consuming app's studioIdentity() reads
+ * (STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN, STUDIO_NAME) so a studio's Vercel env
+ * alone re-brands every unsubscribe link with no caller needing to pass
+ * anything -- which is what lets frozen booking/webhook call sites stay
+ * completely untouched -- then Smudge's own literal default.
  */
 export interface UnsubscribeBranding {
   /** Bare host, no scheme or path, e.g. "emails.smudgeartspace.com". */
@@ -46,7 +47,10 @@ export interface UnsubscribeBranding {
 }
 
 function unsubscribeBase(branding?: UnsubscribeBranding): string {
-  const domain = branding?.unsubscribeDomain?.trim() || DEFAULT_UNSUBSCRIBE_DOMAIN;
+  const domain =
+    branding?.unsubscribeDomain?.trim() ||
+    envVar("STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN") ||
+    DEFAULT_UNSUBSCRIBE_DOMAIN;
   return `https://${domain}/unsubscribe`;
 }
 
@@ -71,7 +75,10 @@ export function buildUnsubscribeHeaders(
   email: string,
   branding?: UnsubscribeBranding,
 ): Record<string, string> {
-  const domain = branding?.unsubscribeDomain?.trim() || DEFAULT_UNSUBSCRIBE_DOMAIN;
+  const domain =
+    branding?.unsubscribeDomain?.trim() ||
+    envVar("STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN") ||
+    DEFAULT_UNSUBSCRIBE_DOMAIN;
   const apiUrl = `https://${domain}/api/unsubscribe?email=${encodeURIComponent(
     email.trim().toLowerCase(),
   )}`;
@@ -87,7 +94,7 @@ export function buildUnsubscribeHeaders(
  */
 export function unsubscribeFooterHtml(email?: string | null, branding?: UnsubscribeBranding): string {
   const url = buildUnsubscribeUrl(email, branding);
-  const studioName = branding?.studioName?.trim() || DEFAULT_STUDIO_NAME;
+  const studioName = branding?.studioName?.trim() || envVar("STUDIO_NAME") || DEFAULT_STUDIO_NAME;
   return (
     `<p style="${F};font-size:11px;color:${COLORS.textMuted};margin:16px 0 0;text-align:center;line-height:1.6">` +
     `You received this because you booked with ${studioName}. ` +
@@ -100,5 +107,11 @@ export function unsubscribeFooterHtml(email?: string | null, branding?: Unsubscr
  * Default unsubscribe footer when the recipient email is not in scope at render
  * time. Used by templates that historically did not carry the recipient email
  * through to the renderer.
+ *
+ * NOTE: this is a MODULE-LOAD-TIME constant, evaluated once when the module
+ * is first imported into a given server process -- unlike every function
+ * above, it cannot re-read env per request. No live call site currently
+ * imports the bare constant (only the function), so this is dormant risk,
+ * not an active bug; flagged so it isn't rediscovered as a surprise later.
  */
 export const UNSUBSCRIBE_FOOTER_HTML = unsubscribeFooterHtml(null);

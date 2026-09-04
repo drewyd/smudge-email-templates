@@ -97,6 +97,76 @@ for (const key of Object.keys(noBranding)) {
 }
 
 console.log("");
+console.log("=== Part 1c: shells resolve identity from ENV ALONE, zero caller involvement ===");
+// The whole point of the L15b rework: a frozen call site (the Stripe webhook,
+// create-class-booking.ts, etc.) never passes a `branding` argument at all --
+// it can't, it's frozen. So this sets the SAME env vars each app's own
+// studioIdentity() reads, calls renderFixtures(undefined) (literally no
+// branding argument, exactly what a frozen call site does), and proves her
+// identity still shows up. This is the test the rework asked for.
+const ENV_KEYS = [
+  "STUDIO_NAME",
+  "STUDIO_EMAIL_LOGO_URL",
+  "STUDIO_EMAIL_LOGO_SMALL_URL",
+  "STUDIO_EMAIL_ADDRESS_LINE",
+  "STUDIO_EMAIL_ADDRESS_LINE_COMPACT",
+  "STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN",
+  "STUDIO_HELLO_ADDRESS",
+];
+const savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+process.env.STUDIO_NAME = WONKY.studioName;
+process.env.STUDIO_EMAIL_LOGO_URL = WONKY.logoUrl;
+process.env.STUDIO_EMAIL_LOGO_SMALL_URL = WONKY.logoSmallUrl;
+process.env.STUDIO_EMAIL_ADDRESS_LINE = WONKY.addressLine;
+process.env.STUDIO_EMAIL_ADDRESS_LINE_COMPACT = WONKY.addressLineCompact;
+process.env.STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN = WONKY.unsubscribeDomain;
+process.env.STUDIO_HELLO_ADDRESS = WONKY.contactEmail;
+
+const envOnly = renderFixtures(undefined); // NO branding argument -- env only
+
+check("branded-shell: shows her name via env alone (no branding arg)", envOnly["branded-shell"].includes(WONKY.studioName));
+check("branded-shell: shows her masthead logo URL via env alone", envOnly["branded-shell"].includes(WONKY.logoUrl));
+check(
+  "branded-shell: no longer shows Smudge's default logo URL",
+  !envOnly["branded-shell"].includes(SMUDGE_DEFAULTS.logoUrl),
+);
+check(
+  "branded-shell: no longer shows Smudge's default alt/copyright/compliance text",
+  !envOnly["branded-shell"].includes(`alt="${SMUDGE_DEFAULTS.studioName}"`) &&
+    !envOnly["branded-shell"].includes(`You received this because you booked with ${SMUDGE_DEFAULTS.studioName}`),
+);
+check("email-wrap: shows her name via env alone", envOnly["email-wrap"].includes(WONKY.studioName));
+check(
+  "unsubscribe-footer-html: uses her unsubscribe domain via env alone",
+  envOnly["unsubscribe-footer-html"].includes(WONKY.unsubscribeDomain),
+);
+check(
+  "unsubscribe-headers: uses her unsubscribe domain via env alone",
+  envOnly["unsubscribe-headers"].includes(WONKY.unsubscribeDomain),
+);
+check(
+  "class-confirmation-customer: shows her compact address via env alone",
+  envOnly["class-confirmation-customer"].includes(WONKY.addressLineCompact),
+);
+check(
+  "class-confirmation-customer: shows her contact email via env alone",
+  envOnly["class-confirmation-customer"].includes(WONKY.contactEmail),
+);
+check("party-confirmation-customer: shows her name via env alone", envOnly["party-confirmation-customer"].includes(WONKY.studioName));
+
+// Restore env exactly as found, then prove Part 1's byte-identical baseline
+// still holds once no STUDIO_* vars are set (Smudge's own production env).
+for (const k of ENV_KEYS) {
+  if (savedEnv[k] === undefined) delete process.env[k];
+  else process.env[k] = savedEnv[k];
+}
+const backToDefaults = renderFixtures(undefined);
+check(
+  "after clearing env: branded-shell reverts to Smudge's exact baseline",
+  backToDefaults["branded-shell"] === baseline["branded-shell"],
+);
+
+console.log("");
 console.log("=== Part 1b: byte-identical when Smudge's OWN identity is passed explicitly (not omitted) ===");
 const explicitSmudge = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
 for (const key of Object.keys(baseline)) {

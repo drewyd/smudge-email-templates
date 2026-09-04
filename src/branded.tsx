@@ -132,13 +132,49 @@ const DEFAULT_BRANDING = {
   addressLine: "102 Union Road, Surrey Hills, Victoria, Australia 3127",
 } as const;
 
-/** Fill in Smudge's defaults for any field the caller didn't pass. */
-export function resolveBranding(branding?: StudioBranding): Required<StudioBranding> {
+/**
+ * Read a trimmed, non-empty env var, or undefined. Guarded for the browser
+ * (this package's shells only ever render server-side -- renderToStaticMarkup
+ * inside a webhook/cron/API route -- but the guard costs nothing and matches
+ * the pattern both apps' own src/lib/studio/identity.ts already use).
+ */
+export function envVar(name: string): string | undefined {
+  if (typeof process === "undefined") return undefined;
+  const v = process.env[name]?.trim();
+  return v ? v : undefined;
+}
+
+/**
+ * Resolve branding from the SAME env vars each consuming app's
+ * studioIdentity() reads (STUDIO_NAME, STUDIO_EMAIL_LOGO_URL, etc.), so a
+ * studio's Vercel env alone is enough to re-brand every shell -- no caller
+ * needs to pass a `branding` prop at all. This is what lets frozen booking/
+ * webhook files stay completely untouched (their existing calls to
+ * BrandedShell/emailWrap/etc, with no branding argument, already resolve
+ * her identity through this).
+ */
+function envBranding(): StudioBranding {
   return {
-    studioName: branding?.studioName?.trim() || DEFAULT_BRANDING.studioName,
-    logoUrl: branding?.logoUrl?.trim() || DEFAULT_BRANDING.logoUrl,
-    logoSmallUrl: branding?.logoSmallUrl?.trim() || DEFAULT_BRANDING.logoSmallUrl,
-    addressLine: branding?.addressLine?.trim() || DEFAULT_BRANDING.addressLine,
+    studioName: envVar("STUDIO_NAME"),
+    logoUrl: envVar("STUDIO_EMAIL_LOGO_URL"),
+    logoSmallUrl: envVar("STUDIO_EMAIL_LOGO_SMALL_URL"),
+    addressLine: envVar("STUDIO_EMAIL_ADDRESS_LINE"),
+  };
+}
+
+/**
+ * Fill in each field in order: an explicit `branding` prop (a non-frozen
+ * caller's deliberate override) wins first, then the env vars her deployment
+ * sets (so every frozen call site, which never passes `branding`, still
+ * picks up her identity automatically), then Smudge's own literal default.
+ */
+export function resolveBranding(branding?: StudioBranding): Required<StudioBranding> {
+  const env = envBranding();
+  return {
+    studioName: branding?.studioName?.trim() || env.studioName || DEFAULT_BRANDING.studioName,
+    logoUrl: branding?.logoUrl?.trim() || env.logoUrl || DEFAULT_BRANDING.logoUrl,
+    logoSmallUrl: branding?.logoSmallUrl?.trim() || env.logoSmallUrl || DEFAULT_BRANDING.logoSmallUrl,
+    addressLine: branding?.addressLine?.trim() || env.addressLine || DEFAULT_BRANDING.addressLine,
   };
 }
 
