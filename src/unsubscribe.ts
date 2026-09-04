@@ -26,7 +26,29 @@
 
 import { COLORS, F } from "./branded";
 
-const UNSUB_BASE = "https://emails.smudgeartspace.com/unsubscribe";
+const DEFAULT_UNSUBSCRIBE_DOMAIN = "emails.smudgeartspace.com";
+const DEFAULT_STUDIO_NAME = "Smudge Artspace";
+
+/**
+ * Studio branding for the unsubscribe link + compliance footer line. Both
+ * fields are optional; omitting them reproduces exactly what this module
+ * shipped before branding existed, so every Smudge call site (none of which
+ * pass this) stays byte-identical. A clone's caller passes its own studio's
+ * unsubscribe domain (her own alias of her Vercel project, e.g.
+ * emails.withsmock.com) and studio name, normally read from that app's
+ * `src/lib/studio/identity.ts`.
+ */
+export interface UnsubscribeBranding {
+  /** Bare host, no scheme or path, e.g. "emails.smudgeartspace.com". */
+  unsubscribeDomain?: string;
+  /** Full trading name shown in the "you received this because you booked with..." line. */
+  studioName?: string;
+}
+
+function unsubscribeBase(branding?: UnsubscribeBranding): string {
+  const domain = branding?.unsubscribeDomain?.trim() || DEFAULT_UNSUBSCRIBE_DOMAIN;
+  return `https://${domain}/unsubscribe`;
+}
 
 /**
  * Build the customer-facing unsubscribe URL.
@@ -36,16 +58,21 @@ const UNSUB_BASE = "https://emails.smudgeartspace.com/unsubscribe";
  *   This is the legacy fallback for templates where the recipient email is
  *   not in scope (e.g. EDM raw HTML stitched in the wizard).
  */
-export function buildUnsubscribeUrl(email?: string | null): string {
-  if (!email) return UNSUB_BASE;
-  return `${UNSUB_BASE}?email=${encodeURIComponent(email.trim().toLowerCase())}`;
+export function buildUnsubscribeUrl(email?: string | null, branding?: UnsubscribeBranding): string {
+  const base = unsubscribeBase(branding);
+  if (!email) return base;
+  return `${base}?email=${encodeURIComponent(email.trim().toLowerCase())}`;
 }
 
 /**
  * RFC 8058 one-click unsubscribe headers for use in `resend.emails.send({ headers })`.
  */
-export function buildUnsubscribeHeaders(email: string): Record<string, string> {
-  const apiUrl = `https://emails.smudgeartspace.com/api/unsubscribe?email=${encodeURIComponent(
+export function buildUnsubscribeHeaders(
+  email: string,
+  branding?: UnsubscribeBranding,
+): Record<string, string> {
+  const domain = branding?.unsubscribeDomain?.trim() || DEFAULT_UNSUBSCRIBE_DOMAIN;
+  const apiUrl = `https://${domain}/api/unsubscribe?email=${encodeURIComponent(
     email.trim().toLowerCase(),
   )}`;
   return {
@@ -58,11 +85,12 @@ export function buildUnsubscribeHeaders(email: string): Record<string, string> {
  * Inline HTML snippet for the unsubscribe footer line on transactional emails.
  * Drop into the body of any branded confirmation right above the brand footer.
  */
-export function unsubscribeFooterHtml(email?: string | null): string {
-  const url = buildUnsubscribeUrl(email);
+export function unsubscribeFooterHtml(email?: string | null, branding?: UnsubscribeBranding): string {
+  const url = buildUnsubscribeUrl(email, branding);
+  const studioName = branding?.studioName?.trim() || DEFAULT_STUDIO_NAME;
   return (
     `<p style="${F};font-size:11px;color:${COLORS.textMuted};margin:16px 0 0;text-align:center;line-height:1.6">` +
-    `You received this because you booked with Smudge Artspace. ` +
+    `You received this because you booked with ${studioName}. ` +
     `<a href="${url}" style="color:${COLORS.textMuted};text-decoration:underline">Unsubscribe</a>.` +
     `</p>`
   );

@@ -22,7 +22,9 @@ import {
   ordinalSuffix,
   renderEmail,
 } from "./branded";
+import type { StudioBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
+import type { UnsubscribeBranding } from "./unsubscribe";
 
 const FONT_STACK = "'Montserrat', Arial, sans-serif";
 
@@ -43,6 +45,14 @@ export interface PartyConfirmationParams {
   invitationColor?: string;
   amount: number;
   bookingId?: string;
+  /**
+   * Studio identity for the shared BrandedShell header/footer and the
+   * unsubscribe link only. Everything else in this template (the greeting,
+   * the venue shown in the details card, the FAQ copy) is booking body
+   * content, out of scope for this field, and stays Smudge's own wording
+   * until the venue/catering data itself is threaded per-studio.
+   */
+  branding?: StudioBranding & UnsubscribeBranding;
 }
 
 export interface PartyConfirmationResult {
@@ -215,10 +225,15 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
   const birthdayHeadline = age
     ? `${childName}'s ${age}${ordinalSuffix(age)} Birthday Party`
     : `${childName}'s Birthday Party`;
-  const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null);
+  const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, params.branding);
 
   return (
-    <BrandedShell heading="It's Party Time!" signoff="We can't wait to celebrate with you!" unsubscribeUrl={unsubUrl}>
+    <BrandedShell
+      heading="It's Party Time!"
+      signoff="We can't wait to celebrate with you!"
+      unsubscribeUrl={unsubUrl}
+      branding={params.branding}
+    >
       <p
         style={{
           fontFamily: FONT_STACK,

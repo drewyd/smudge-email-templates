@@ -88,6 +88,44 @@ export const COLORS = {
   bgContent: "#fafafa",
 } as const;
 
+/**
+ * Studio branding for the shared header/footer chrome -- the email masthead
+ * logo, the business name shown in alt text/copyright/compliance lines, and
+ * the postal address line in the footer. Every field is optional and every
+ * default below is the exact literal this package shipped before branding
+ * existed, so a caller that passes nothing (every Smudge call site, today)
+ * renders byte-identical output. A clone's caller passes its own studio's
+ * values, normally read from that app's `src/lib/studio/identity.ts`.
+ *
+ * Deliberately narrow: this does not cover the nav strip's link targets, the
+ * social links, or the Hub-specific "Smudge Hub" wordmark/nav in HubShell --
+ * Hub is Smudge-only (see identity.ts's own note on the "hub" FromKind), and
+ * nav routing is a site-identity concern, not an email-branding one.
+ */
+export interface StudioBranding {
+  /** Full trading name, e.g. "Smudge Artspace". Used in logo alt text, the footer copyright line and the "you received this because you booked with..." compliance line. */
+  studioName?: string;
+  /** Full URL to the email masthead logo. Defaults to Smudge's own baked white-ground logo. */
+  logoUrl?: string;
+  /** Single-line postal address shown in the footer. */
+  addressLine?: string;
+}
+
+const DEFAULT_BRANDING = {
+  studioName: "Smudge Artspace",
+  logoUrl: IMG.logo,
+  addressLine: "102 Union Road, Surrey Hills, Victoria, Australia 3127",
+} as const;
+
+/** Fill in Smudge's defaults for any field the caller didn't pass. */
+export function resolveBranding(branding?: StudioBranding): Required<StudioBranding> {
+  return {
+    studioName: branding?.studioName?.trim() || DEFAULT_BRANDING.studioName,
+    logoUrl: branding?.logoUrl?.trim() || DEFAULT_BRANDING.logoUrl,
+    addressLine: branding?.addressLine?.trim() || DEFAULT_BRANDING.addressLine,
+  };
+}
+
 export function escapeHtml(str: string): string {
   if (!str) return "";
   return str
@@ -305,12 +343,12 @@ function NavStrip({ links }: { links: NavLink[] }) {
   );
 }
 
-function Logo({ href }: { href: string }) {
+function Logo({ href, src, alt }: { href: string; src: string; alt: string }) {
   return (
     <a href={href} target="_blank" rel="noreferrer">
       <img
-        src={IMG.logo}
-        alt="Smudge Artspace"
+        src={src}
+        alt={alt}
         width="200"
         style={{ display: "block", maxWidth: "200px", width: "100%", height: "auto", border: 0 }}
       />
@@ -318,10 +356,10 @@ function Logo({ href }: { href: string }) {
   );
 }
 
-function LogoSmall({ alt = "Smudge Artspace" }: { alt?: string }) {
+function LogoSmall({ src, alt = "Smudge Artspace" }: { src: string; alt?: string }) {
   return (
     <img
-      src={IMG.logoSmall}
+      src={src}
       alt={alt}
       width="119"
       style={{ display: "block", maxWidth: "119px", height: "auto", border: 0, margin: "0 auto" }}
@@ -344,6 +382,8 @@ export interface BrandedShellProps {
    * above the "Thanks so much, / Emma" sign-off.
    */
   unsubscribeUrl?: string | null;
+  /** Studio identity for the logo, alt text, copyright line and compliance line. Omit for Smudge's own defaults. */
+  branding?: StudioBranding;
   children: React.ReactNode;
 }
 
@@ -351,7 +391,8 @@ export interface BrandedShellProps {
  * Full-fat Smudge Studio email shell: logo, multi-colour studio nav,
  * centered <h1> heading, body slot, Emma signature, footer copyright.
  */
-export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: BrandedShellProps) {
+export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, children }: BrandedShellProps) {
+  const b = resolveBranding(branding);
   return (
     <html>
       <head>
@@ -400,7 +441,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: Bra
                         align="center"
                         style={{ padding: "40px 20px 0", backgroundColor: COLORS.bgCard }}
                       >
-                        <Logo href={SITE} />
+                        <Logo href={SITE} src={b.logoUrl} alt={b.studioName} />
                       </td>
                     </tr>
                     <tr>
@@ -458,7 +499,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: Bra
                             margin: "0 auto 16px",
                           }}
                         />
-                        <LogoSmall />
+                        <LogoSmall src={branding?.logoUrl?.trim() || IMG.logoSmall} alt={b.studioName} />
                       </td>
                     </tr>
                   </tbody>
@@ -482,7 +523,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: Bra
                             margin: 0,
                           }}
                         >
-                          © Smudge Artspace 2026. All rights reserved
+                          © {b.studioName} 2026. All rights reserved
                         </p>
                         {unsubscribeUrl ? (
                           <p
@@ -494,7 +535,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: Bra
                               lineHeight: 1.6,
                             }}
                           >
-                            You received this because you booked with Smudge Artspace.{" "}
+                            You received this because you booked with {b.studioName}.{" "}
                             <a
                               href={unsubscribeUrl}
                               style={{ color: COLORS.textMuted, textDecoration: "underline" }}
@@ -524,6 +565,8 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, children }: Bra
 export interface HubShellProps {
   heading: string;
   signoff?: string;
+  /** Studio name + postal address for the footer block. Omit for Smudge's own defaults. The Hub wordmark, its nav and its copyright stay Smudge-only -- Hub is not part of a studio clone. */
+  branding?: StudioBranding;
   children: React.ReactNode;
 }
 
@@ -532,7 +575,8 @@ export interface HubShellProps {
  * berry accent, Hub-specific nav (Themes / Community / Gallery),
  * and richer footer with full address + socials.
  */
-export function HubShell({ heading, signoff, children }: HubShellProps) {
+export function HubShell({ heading, signoff, branding, children }: HubShellProps) {
+  const b = resolveBranding(branding);
   const HUB_HOME = `${SITE}/hub`;
   return (
     <html>
@@ -665,7 +709,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                         align="center"
                         style={{ padding: "0 40px 32px", backgroundColor: COLORS.bgCard }}
                       >
-                        <LogoSmall alt="Smudge Hub" />
+                        <LogoSmall src={IMG.logoSmall} alt="Smudge Hub" />
                       </td>
                     </tr>
                   </tbody>
@@ -690,7 +734,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                             fontWeight: 700,
                           }}
                         >
-                          Smudge Artspace
+                          {b.studioName}
                         </p>
                         <p
                           style={{
@@ -701,7 +745,7 @@ export function HubShell({ heading, signoff, children }: HubShellProps) {
                             lineHeight: 1.6,
                           }}
                         >
-                          102 Union Road, Surrey Hills, Victoria, Australia 3127
+                          {b.addressLine}
                         </p>
                         <p style={{ margin: "0 0 16px" }}>
                           <a
@@ -809,9 +853,10 @@ export function emailWrap(
   bodyHtml: string,
   signoff?: string,
   unsubscribeUrl?: string | null,
+  branding?: StudioBranding,
 ): string {
   return renderEmail(
-    <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl}>
+    <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl} branding={branding}>
       <span dangerouslySetInnerHTML={{ __html: bodyHtml }} />
     </BrandedShell>,
   );
@@ -824,9 +869,14 @@ export function emailWrap(
  *   calling `renderEmail()`. This wrapper exists so existing call sites
  *   (hub-onboarding cron) keep working unchanged.
  */
-export function hubEmailWrap(heading: string, bodyHtml: string, signoff?: string): string {
+export function hubEmailWrap(
+  heading: string,
+  bodyHtml: string,
+  signoff?: string,
+  branding?: StudioBranding,
+): string {
   return renderEmail(
-    <HubShell heading={heading} signoff={signoff}>
+    <HubShell heading={heading} signoff={signoff} branding={branding}>
       <span dangerouslySetInnerHTML={{ __html: bodyHtml }} />
     </HubShell>,
   );

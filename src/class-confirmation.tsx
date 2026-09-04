@@ -24,8 +24,29 @@ import {
   fmtDate,
   fmtTime,
   renderEmail,
+  resolveBranding,
 } from "./branded";
+import type { StudioBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
+import type { UnsubscribeBranding } from "./unsubscribe";
+
+/**
+ * This template wraps its own shell (see the file header comment) rather
+ * than reusing BrandedShell, so it duplicates the masthead logo and the
+ * footer address/contact block. Both are threaded through the same
+ * `branding` field BrandedShell and party-confirmation.tsx use, so a studio
+ * gets one consistent identity across every confirmation email. The two
+ * defaults below (`FOOTER_ADDRESS_FALLBACK`, `CONTACT_EMAIL_FALLBACK`) are
+ * kept local rather than pulled from branded.tsx's resolveBranding() because
+ * they were, and still are, worded slightly differently from the shared
+ * defaults there ("102 Union Rd, Surrey Hills VIC 3127" here vs
+ * "102 Union Road, Surrey Hills, Victoria, Australia 3127" in
+ * BrandedShell/HubShell) -- reusing the shared string would have been a
+ * quiet copy change on Smudge's own email, which is exactly what this
+ * change must not do.
+ */
+const FOOTER_ADDRESS_FALLBACK = "102 Union Rd, Surrey Hills VIC 3127";
+const CONTACT_EMAIL_FALLBACK = "hello@smudgeartspace.com";
 
 const FONT_STACK = "'Montserrat', Arial, sans-serif";
 
@@ -47,6 +68,15 @@ export interface ClassConfirmationParams {
   giftCardCode?: string | null;
   sessionStartTime?: string | null;
   sessionEndTime?: string | null;
+  /**
+   * Studio identity for this template's own header/footer chrome (masthead
+   * logo, small footer logo, footer address + contact line, unsubscribe
+   * line) only. The greeting sentence, the "Location" card inside the body
+   * (which shows the venue the class is actually AT, booking data, not
+   * identity) and the subject line stay Smudge's own wording -- out of
+   * scope here, tracked separately.
+   */
+  branding?: StudioBranding & UnsubscribeBranding & { contactEmail?: string };
 }
 
 export interface ClassConfirmationResult {
@@ -169,14 +199,18 @@ function resolveGiftCard(params: ClassConfirmationParams):
 /* ----------------------------------------------------------------------- */
 
 export function ClassConfirmationEmail(params: ClassConfirmationParams) {
-  const { parentName, parentEmail, className, children, dates, amountCents, receiptUrl } = params;
+  const { parentName, parentEmail, className, children, dates, amountCents, receiptUrl, branding } = params;
 
   const safeParent = (parentName.split(" ")[0] || parentName).trim();
   const childNames = children.map((c) => c.name).join(", ");
   const amountDollars = (amountCents / 100).toFixed(2);
   const sessionTime = resolveSessionTime(params);
   const giftCard = resolveGiftCard(params);
-  const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null);
+  const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, branding);
+  const b = resolveBranding(branding);
+  const footerAddressLine = branding?.addressLine?.trim() || FOOTER_ADDRESS_FALLBACK;
+  const logoSmallSrc = branding?.logoUrl?.trim() || IMG.logoSmall;
+  const contactEmail = branding?.contactEmail?.trim() || CONTACT_EMAIL_FALLBACK;
 
   return (
     <html>
@@ -245,8 +279,8 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                       >
                         <a href={SITE} target="_blank" rel="noreferrer">
                           <img
-                            src={IMG.logo}
-                            alt="Smudge Artspace"
+                            src={b.logoUrl}
+                            alt={b.studioName}
                             width="200"
                             style={{
                               display: "block",
@@ -333,6 +367,8 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             textAlign: "left",
                           }}
                         >
+                          {/* Body copy, deliberately left Smudge's own wording -- see the
+                              branding field's doc comment above. */}
                           Thank you for booking with Smudge Artspace! Here are your booking details:
                         </p>
 
@@ -492,7 +528,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             lineHeight: 1.6,
                           }}
                         >
-                          You received this because you booked with Smudge Artspace.{" "}
+                          You received this because you booked with {b.studioName}.{" "}
                           <a
                             href={unsubUrl}
                             style={{ color: COLORS.textMuted, textDecoration: "underline" }}
@@ -510,8 +546,8 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         style={{ padding: "8px 40px 24px" }}
                       >
                         <img
-                          src={IMG.logoSmall}
-                          alt="Smudge Artspace"
+                          src={logoSmallSrc}
+                          alt={b.studioName}
                           width="119"
                           style={{
                             display: "block",
@@ -546,7 +582,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             margin: "0 0 4px",
                           }}
                         >
-                          Smudge Artspace · 102 Union Rd, Surrey Hills VIC 3127
+                          {b.studioName} · {footerAddressLine}
                         </p>
                         <p
                           style={{
@@ -557,10 +593,10 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                           }}
                         >
                           <a
-                            href="mailto:hello@smudgeartspace.com"
+                            href={`mailto:${contactEmail}`}
                             style={{ color: COLORS.berry, textDecoration: "none" }}
                           >
-                            hello@smudgeartspace.com
+                            {contactEmail}
                           </a>
                         </p>
                       </td>
