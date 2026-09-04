@@ -107,6 +107,20 @@ export interface StudioBranding {
   studioName?: string;
   /** Full URL to the email masthead logo. Defaults to Smudge's own baked white-ground logo. */
   logoUrl?: string;
+  /**
+   * Full URL to the SMALL decorative logo repeated in the footer signoff
+   * block. Genuinely a different asset from logoUrl, not just a smaller
+   * render of it (Smudge's own two files differ), so it is its own field
+   * with its own default rather than falling back to logoUrl -- reusing
+   * logoUrl here was a real bug (fixed 4 Sep 2026, L15b): every real caller
+   * passes a FULLY populated branding object (identity.ts's emailBranding),
+   * so a `branding?.logoUrl || IMG.logoSmall`-style fallback never actually
+   * fell back, and Smudge's own footer silently started showing her BIG
+   * logo shrunk to 119px instead of the small logo file. Caught by
+   * operations-dashboard's src/test/brand-colour-rendering.test.ts golden
+   * master, which is exactly the kind of check this bug needed.
+   */
+  logoSmallUrl?: string;
   /** Single-line postal address shown in the footer. */
   addressLine?: string;
 }
@@ -114,6 +128,7 @@ export interface StudioBranding {
 const DEFAULT_BRANDING = {
   studioName: "Smudge Artspace",
   logoUrl: IMG.logo,
+  logoSmallUrl: IMG.logoSmall,
   addressLine: "102 Union Road, Surrey Hills, Victoria, Australia 3127",
 } as const;
 
@@ -122,6 +137,7 @@ export function resolveBranding(branding?: StudioBranding): Required<StudioBrand
   return {
     studioName: branding?.studioName?.trim() || DEFAULT_BRANDING.studioName,
     logoUrl: branding?.logoUrl?.trim() || DEFAULT_BRANDING.logoUrl,
+    logoSmallUrl: branding?.logoSmallUrl?.trim() || DEFAULT_BRANDING.logoSmallUrl,
     addressLine: branding?.addressLine?.trim() || DEFAULT_BRANDING.addressLine,
   };
 }
@@ -499,7 +515,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                             margin: "0 auto 16px",
                           }}
                         />
-                        <LogoSmall src={branding?.logoUrl?.trim() || IMG.logoSmall} alt={b.studioName} />
+                        <LogoSmall src={b.logoSmallUrl} alt={b.studioName} />
                       </td>
                     </tr>
                   </tbody>

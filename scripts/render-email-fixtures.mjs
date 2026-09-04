@@ -116,7 +116,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? {
         studioName: "Wonky Comet Studio",
         logoUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
+        logoSmallUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
         addressLine: "14 High Street, Northcote, Victoria, Australia 3070",
+        addressLineCompact: "14 High St, Northcote VIC 3070",
         unsubscribeDomain: "demo.withsmock.com",
         contactEmail: "hello@demo.withsmock.com",
       }

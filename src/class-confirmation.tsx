@@ -76,7 +76,24 @@ export interface ClassConfirmationParams {
    * identity) and the subject line stay Smudge's own wording -- out of
    * scope here, tracked separately.
    */
-  branding?: StudioBranding & UnsubscribeBranding & { contactEmail?: string };
+  branding?: StudioBranding &
+    UnsubscribeBranding & {
+      contactEmail?: string;
+      /**
+       * Footer address in THIS template's own historical short format
+       * ("102 Union Rd, Surrey Hills VIC 3127") -- deliberately separate
+       * from StudioBranding.addressLine (the longer form BrandedShell/
+       * HubShell use for the same physical address). Reusing addressLine
+       * here was a real bug (fixed 4 Sep 2026, L15b): every real caller
+       * passes identity.ts's fully-populated emailBranding object, so
+       * `branding?.addressLine || FOOTER_ADDRESS_FALLBACK` never actually
+       * fell back and Smudge's own class-confirmation footer silently
+       * started rendering the long-form address instead of its usual
+       * short one. Caught by operations-dashboard's
+       * src/test/brand-colour-rendering.test.ts golden master.
+       */
+      addressLineCompact?: string;
+    };
 }
 
 export interface ClassConfirmationResult {
@@ -208,8 +225,8 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
   const giftCard = resolveGiftCard(params);
   const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, branding);
   const b = resolveBranding(branding);
-  const footerAddressLine = branding?.addressLine?.trim() || FOOTER_ADDRESS_FALLBACK;
-  const logoSmallSrc = branding?.logoUrl?.trim() || IMG.logoSmall;
+  const footerAddressLine = branding?.addressLineCompact?.trim() || FOOTER_ADDRESS_FALLBACK;
+  const logoSmallSrc = branding?.logoSmallUrl?.trim() || IMG.logoSmall;
   const contactEmail = branding?.contactEmail?.trim() || CONTACT_EMAIL_FALLBACK;
 
   return (

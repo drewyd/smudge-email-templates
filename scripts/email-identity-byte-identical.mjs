@@ -38,7 +38,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WONKY = {
   studioName: "Wonky Comet Studio",
   logoUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
+  logoSmallUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
   addressLine: "14 High Street, Northcote, Victoria, Australia 3070",
+  addressLineCompact: "14 High St, Northcote VIC 3070",
   unsubscribeDomain: "demo.withsmock.com",
   contactEmail: "hello@demo.withsmock.com",
 };
@@ -46,10 +48,31 @@ const WONKY = {
 const SMUDGE_DEFAULTS = {
   studioName: "Smudge Artspace",
   logoUrl: "https://www.smudgeartspace.com/email-assets/smudge-logo-color.png",
+  logoSmallUrl: "https://www.smudgeartspace.com/email-assets/smudge-logo-small.png",
   addressLineLong: "102 Union Road, Surrey Hills, Victoria, Australia 3127",
   addressLineShort: "102 Union Rd, Surrey Hills VIC 3127",
   unsubscribeDomain: "emails.smudgeartspace.com",
   contactEmail: "hello@smudgeartspace.com",
+};
+
+// A FULLY POPULATED branding object holding exactly Smudge's own default
+// values -- the shape every real call site actually passes (identity.ts's
+// emailBranding always returns a complete object, never undefined). This is
+// deliberately a SEPARATE case from "no branding argument at all": a
+// fallback written as `branding?.logoUrl || IMG.logoSmall` looks correct
+// against `branding: undefined` and is silently wrong the moment a caller
+// hands over a populated object whose logoUrl happens to equal the default
+// -- exactly the class of bug this case is here to catch (see the
+// logoSmallUrl field's doc comment in src/branded.tsx for the real one it
+// found, 4 Sep 2026).
+const SMUDGE_AS_EXPLICIT_BRANDING = {
+  studioName: SMUDGE_DEFAULTS.studioName,
+  logoUrl: SMUDGE_DEFAULTS.logoUrl,
+  logoSmallUrl: SMUDGE_DEFAULTS.logoSmallUrl,
+  addressLine: SMUDGE_DEFAULTS.addressLineLong,
+  addressLineCompact: SMUDGE_DEFAULTS.addressLineShort,
+  unsubscribeDomain: SMUDGE_DEFAULTS.unsubscribeDomain,
+  contactEmail: SMUDGE_DEFAULTS.contactEmail,
 };
 
 let failures = 0;
@@ -71,6 +94,14 @@ for (const key of Object.keys(baseline)) {
 }
 for (const key of Object.keys(noBranding)) {
   if (!(key in baseline)) check(`${key} (unexpected new entry)`, false, "present in render but not in baseline -- add it to the baseline deliberately, don't silently accept");
+}
+
+console.log("");
+console.log("=== Part 1b: byte-identical when Smudge's OWN identity is passed explicitly (not omitted) ===");
+const explicitSmudge = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+for (const key of Object.keys(baseline)) {
+  const same = explicitSmudge[key] === baseline[key];
+  check(`${key} (explicit branding)`, same, same ? undefined : "rendered output differs when identity.ts's own emailBranding object is passed, vs. omitting branding entirely -- a fallback is looking at the wrong signal");
 }
 
 console.log("");
@@ -103,7 +134,7 @@ for (const key of ["unsubscribe-footer-html", "unsubscribe-url-with-email", "uns
 }
 check("unsubscribe-footer-html: shows her studio name in the compliance line", wonky["unsubscribe-footer-html"].includes(WONKY.studioName));
 
-check("class-confirmation-customer: shows her postal address in the footer", wonky["class-confirmation-customer"].includes(WONKY.addressLine));
+check("class-confirmation-customer: shows her postal address (compact form) in the footer", wonky["class-confirmation-customer"].includes(WONKY.addressLineCompact));
 check("class-confirmation-customer: shows her contact email in the footer", wonky["class-confirmation-customer"].includes(WONKY.contactEmail));
 check("class-confirmation-customer: no longer shows Smudge's own footer address", !wonky["class-confirmation-customer"].includes(`${SMUDGE_DEFAULTS.studioName} · ${SMUDGE_DEFAULTS.addressLineShort}`));
 
