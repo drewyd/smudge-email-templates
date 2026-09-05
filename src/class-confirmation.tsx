@@ -533,7 +533,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             margin: 0,
                           }}
                         >
-                          Emma xx
+                          {identity.signOffName}
                         </p>
 
                         {/* Unsubscribe footer (compliance) */}
