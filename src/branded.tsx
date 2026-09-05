@@ -243,6 +243,38 @@ function shortNameFor(studioName: string, fallback: StudioEmailIdentity): string
 }
 
 /**
+ * The short name for an EXPLICIT studio name, without ever consulting the
+ * seven-field env identity (a caller who passed a complete or partial
+ * `branding` object must not be rejected by a half-set env it did not ask
+ * about; that was a real regression caught in cold review, 5 Sep 2026).
+ * Two single-variable reads are allowed: if the explicit name IS this
+ * deployment's own STUDIO_NAME, the deployment's STUDIO_SHORT_NAME applies,
+ * which is what both apps' emailBranding objects carry on a studio's clone.
+ */
+function explicitShortName(explicitShort: string | undefined, studioName: string): string {
+  const short = explicitShort?.trim();
+  if (short) return short;
+  if (studioName === envVar("STUDIO_NAME")) return envVar(SHORT_NAME_ENV) ?? studioName;
+  return shortNameFor(studioName, DEFAULT_EMAIL_IDENTITY);
+}
+
+/**
+ * The studio's short name for a subject line. An explicit `branding` object
+ * answers from its own fields (plus the two single env reads above) and never
+ * throws; with no branding at all the deployment's env identity answers, the
+ * same way every shell already resolves it.
+ */
+export function resolveStudioShortName(
+  branding?: Partial<StudioEmailIdentity> & SubjectBranding,
+): string {
+  const explicitName = branding?.studioName?.trim();
+  if (branding?.studioShortName?.trim() || explicitName) {
+    return explicitShortName(branding?.studioShortName, explicitName ?? DEFAULT_EMAIL_IDENTITY.studioName);
+  }
+  return resolveStudioEmailIdentity(branding).studioShortName;
+}
+
+/**
  * Resolve one coherent email identity. An omitted object may activate the
  * deployment's STUDIO_* identity, but that environment identity is accepted
  * only when all seven fields are present. This prevents a half-configured
@@ -269,10 +301,7 @@ export function resolveStudioEmailIdentity(
       addressLineCompact: branding.addressLineCompact.trim(),
       unsubscribeDomain: branding.unsubscribeDomain.trim(),
       contactEmail: branding.contactEmail.trim(),
-      // A complete explicit identity never consults the env (a partial env
-      // must not be able to reject it), so the short name falls back to the
-      // package default, which is only "Smudge" for Smudge's own name.
-      studioShortName: branding.studioShortName?.trim() || shortNameFor(studioName, DEFAULT_EMAIL_IDENTITY),
+      studioShortName: explicitShortName(branding.studioShortName, studioName),
     };
   }
 

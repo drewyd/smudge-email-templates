@@ -23,7 +23,7 @@ import {
   renderEmail,
 } from "./branded";
 import type { StudioBranding, SubjectBranding } from "./branded";
-import { resolveStudioEmailIdentity } from "./branded";
+import { resolveStudioShortName } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -451,6 +451,6 @@ export function buildPartyConfirmationEmail(
     customerHtml: renderEmail(<PartyConfirmationEmail {...params} />),
     internalHtml: renderEmail(<PartyConfirmationInternalEmail {...params} />),
     resolvedAge: age,
-    customerSubject: `${params.childName.split(" ")[0] || params.childName}'s ${resolveStudioEmailIdentity(params.branding).studioShortName} Birthday Party is booked!`,
+    customerSubject: `${params.childName.split(" ")[0] || params.childName}'s ${resolveStudioShortName(params.branding)} Birthday Party is booked!`,
   };
 }

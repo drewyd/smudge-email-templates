@@ -26,6 +26,7 @@ import {
   renderEmail,
   resolveBranding,
   resolveStudioEmailIdentity,
+  resolveStudioShortName,
 } from "./branded";
 import type { StudioBranding, SubjectBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
@@ -735,7 +736,7 @@ export function buildClassConfirmationEmail(
   params: ClassConfirmationParams,
 ): ClassConfirmationResult {
   return {
-    subject: `Booking Confirmed: ${params.className} at ${resolveStudioEmailIdentity(params.branding).studioShortName}`,
+    subject: `Booking Confirmed: ${params.className} at ${resolveStudioShortName(params.branding)}`,
     customerHtml: renderEmail(<ClassConfirmationEmail {...params} />),
     internalHtml: renderEmail(<ClassConfirmationInternalEmail {...params} />),
   };

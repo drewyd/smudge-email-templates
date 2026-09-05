@@ -34,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
+import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -145,6 +146,43 @@ check(
     explicitAgainstPartialEnv?.["unsubscribe-footer-html"].includes(WONKY.unsubscribeDomain),
   "complete explicit branding was rejected by environment values it did not need",
 );
+// Cold review, 5 Sep 2026: the party builder's own branding type allows five
+// fields (StudioBranding + UnsubscribeBranding), and that input rendered fine
+// before the subject line learned to read an identity. It must still.
+// (The CLASS builder's footer has consulted the seven-field identity since
+// L15b and already refused this input against a partial env; only the PARTY
+// builder, whose own type is five fields, is asserted here.)
+let fiveFieldParty;
+try {
+  fiveFieldParty = buildPartyConfirmationEmail({
+    parentName: "Priya Shah",
+    parentEmail: "priya@example.com",
+    parentPhone: "0400 000 000",
+    childName: "Arav Shah",
+    childAge: 6,
+    partyDate: "2026-11-14",
+    partyTime: "10:00:00",
+    theme: "Dinosaur Dig",
+    cateringDisplay: "BYO",
+    amount: 65000,
+    branding: {
+      studioName: WONKY.studioName,
+      logoUrl: WONKY.logoUrl,
+      logoSmallUrl: WONKY.logoSmallUrl,
+      addressLine: WONKY.addressLine,
+      unsubscribeDomain: WONKY.unsubscribeDomain,
+    },
+  });
+} catch (error) {
+  fiveFieldParty = { error };
+}
+check(
+  "a five-field explicit branding (the party builder's own type) still renders against a partial env",
+  fiveFieldParty && !fiveFieldParty.error &&
+    fiveFieldParty.customerSubject === `Arav's ${WONKY.studioName} Birthday Party is booked!` &&
+    fiveFieldParty.customerHtml.includes(WONKY.logoUrl),
+  fiveFieldParty?.error ? String(fiveFieldParty.error) : JSON.stringify(fiveFieldParty?.customerSubject),
+);
 for (const k of ENV_KEYS) delete process.env[k];
 process.env.STUDIO_NAME = WONKY.studioName;
 process.env.STUDIO_HELLO_ADDRESS = WONKY.contactEmail;
@@ -252,6 +290,20 @@ check(
     partialExplicit["unsubscribe-url-with-email"].includes(WONKY.unsubscribeDomain),
   "the explicit field caused the remaining identity fields to fall back to Smudge",
 );
+check(
+  "an explicit studio name other than the deployment's own is used whole in the subject",
+  partialExplicit["party-confirmation-subject"] === "Arav's Wonky Comet Workshops Birthday Party is booked!",
+  JSON.stringify(partialExplicit["party-confirmation-subject"]),
+);
+process.env.STUDIO_SHORT_NAME = WONKY.studioShortName;
+const explicitOwnName = renderFixtures({ ...WONKY, studioShortName: undefined });
+check(
+  "an explicit object naming the deployment's own studio (both apps' emailBranding on a clone) gets STUDIO_SHORT_NAME",
+  explicitOwnName["party-confirmation-subject"] === `Arav's ${WONKY.studioShortName} Birthday Party is booked!` &&
+    explicitOwnName["class-confirmation-subject"] === `Booking Confirmed: Art Play Lab at ${WONKY.studioShortName}`,
+  JSON.stringify(explicitOwnName["party-confirmation-subject"]),
+);
+delete process.env.STUDIO_SHORT_NAME;
 
 console.log("");
 console.log("=== Part 1d: Smudge values supplied through ENV remain byte-identical ===");
