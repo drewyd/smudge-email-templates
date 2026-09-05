@@ -296,28 +296,52 @@ function defaultSignOff(studioName: string): StudioSignOff {
 }
 
 /**
- * The sign-off for one resolved studio name. An explicit field wins; then this
- * deployment's own two variables, but ONLY when the name being resolved IS the
- * deployment's STUDIO_NAME (a caller who hands Smudge's identity to a studio's
- * build must not be signed by that studio, nor the other way round); then the
- * default above. Never consults the seven-field env identity, so an explicit
- * branding object is never rejected by a half-set env it did not ask about.
+ * The sign-off for one resolved studio name. Sources are tried in order and
+ * the FIRST one that says anything about the sign-off answers BOTH fields:
+ * an explicit branding object, then this deployment's own two variables (only
+ * when the name being resolved IS the deployment's STUDIO_NAME, so a caller
+ * who hands Smudge's identity to a studio's build is not signed by that
+ * studio, nor the other way round), then the default above.
+ *
+ * The name and the image are never taken from different sources. Reading them
+ * independently looked harmless and put one person's name over another
+ * person's handwriting: an explicit ownerFirstName with no image of its own
+ * kept the deployment's signature file, so an email signed "Alex" was drawn in
+ * Tess's hand, and on Smudge in Emma's (cold review, 5 Sep 2026). A signer who
+ * brought no image signs in plain text.
+ *
+ * Never consults the seven-field env identity, so an explicit branding object
+ * is never rejected by a half-set env it did not ask about.
  */
 function signOffFor(studioName: string, explicit?: SignOffBranding): StudioSignOff {
   const base = defaultSignOff(studioName);
   const ownDeployment = studioName === envVar(EMAIL_IDENTITY_ENV.studioName);
-  const ownerFirstName =
-    explicit?.ownerFirstName?.trim() ||
-    (ownDeployment ? envVar(SIGN_OFF_ENV.ownerFirstName) : undefined) ||
-    base.ownerFirstName;
-  const signatureUrl =
-    signatureImageUrl(explicit?.signatureUrl) ??
-    (ownDeployment ? signatureImageUrl(envVar(SIGN_OFF_ENV.signatureUrl)) : undefined) ??
-    base.signatureUrl;
-  // "Emma xx" survives exactly where it belongs: an identity still signed by
-  // the name its own default carries. A studio who named herself signs alone.
-  const signOffName = ownerFirstName === base.ownerFirstName ? base.signOffName : ownerFirstName;
-  return { ownerFirstName, signatureUrl, signOffName };
+  const sources: SignOffBranding[] = [
+    { ownerFirstName: explicit?.ownerFirstName, signatureUrl: explicit?.signatureUrl },
+  ];
+  if (ownDeployment) {
+    sources.push({
+      ownerFirstName: envVar(SIGN_OFF_ENV.ownerFirstName),
+      signatureUrl: envVar(SIGN_OFF_ENV.signatureUrl),
+    });
+  }
+  for (const source of sources) {
+    const name = source.ownerFirstName?.trim();
+    const image = signatureImageUrl(source.signatureUrl);
+    if (!name && !image) continue;
+    // A source that named nobody still belongs to this studio, so her own
+    // name carries the image she supplied.
+    const ownerFirstName = name || base.ownerFirstName;
+    return {
+      ownerFirstName,
+      signatureUrl: image ?? null,
+      // "Emma xx" survives exactly where it belongs: an identity still signed
+      // by the name its own default carries. A studio who named herself, or
+      // anyone who overrode the name, signs with that name alone.
+      signOffName: ownerFirstName === base.ownerFirstName ? base.signOffName : ownerFirstName,
+    };
+  }
+  return base;
 }
 
 /**

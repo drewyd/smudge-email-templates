@@ -70,6 +70,15 @@ const TESS = {
   ownerFirstName: "Tess",
   signatureUrl: "https://demo.withsmock.com/email-assets/tess-signature.png",
 };
+// A SECOND signer, distinct from Emma and from the env's Tess, so an explicit
+// override can be told apart from the environment it is meant to beat (cold
+// review, 5 Sep 2026: the first version of that check passed the same values
+// the env already held, and still passed when both explicit reads were
+// disabled).
+const ALEX = {
+  ownerFirstName: "Alex",
+  signatureUrl: "https://demo.withsmock.com/email-assets/alex-signature.png",
+};
 const SIGN_OFF_ENV_KEYS = ["STUDIO_OWNER_FIRST_NAME", "STUDIO_EMAIL_SIGNATURE_URL"];
 
 // A FULLY POPULATED branding object holding exactly Smudge's own default
@@ -424,13 +433,64 @@ for (const key of Object.keys(baseline)) {
     "a studio's sign-off env reached an email explicitly identified as Smudge's",
   );
 }
-const explicitWonkySignOff = renderFixtures({ ...WONKY, ...TESS });
+// The env still holds Tess and her image here, so an explicit ALEX proves the
+// explicit fields are actually read rather than agreeing with the environment.
+const explicitOverridesEnv = renderFixtures({ ...WONKY, ...ALEX });
 check(
-  "an explicit branding object may carry the sign-off itself",
-  explicitWonkySignOff["branded-shell"].includes(`src="${TESS.signatureUrl}" alt="${TESS.ownerFirstName}"`) &&
-    !explicitWonkySignOff["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl),
-  "explicit sign-off fields were ignored",
+  "an explicit sign-off beats the deployment's own, name and image together",
+  explicitOverridesEnv["branded-shell"].includes(
+    `src="${ALEX.signatureUrl}" alt="${ALEX.ownerFirstName}"`,
+  ) &&
+    !explicitOverridesEnv["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitOverridesEnv["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    explicitOverridesEnv["class-confirmation-customer"].includes(`>${ALEX.ownerFirstName}</p>`),
+  "the explicit sign-off was ignored in favour of the environment's",
 );
+// The defect this pairing rule exists for: a name from one source over an
+// image from another (cold review, 5 Sep 2026).
+const explicitNameOnly = renderFixtures({ ...WONKY, ownerFirstName: ALEX.ownerFirstName });
+check(
+  "an explicit signer who brought no image signs in plain text, never in someone else's hand",
+  explicitNameOnly["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitNameOnly["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitNameOnly["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl),
+  "one person's name was drawn over another person's signature",
+);
+check(
+  "the same override on the class confirmation signs the new name and drops the kisses",
+  explicitNameOnly["class-confirmation-customer"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitNameOnly["class-confirmation-customer"].includes("Emma"),
+  "the class confirmation ignored the explicit signer",
+);
+const explicitBadImage = renderFixtures({
+  ...WONKY,
+  ownerFirstName: ALEX.ownerFirstName,
+  signatureUrl: "http://demo.withsmock.com/alex.png",
+});
+check(
+  "an explicit signer with an unusable image signs in plain text, not in the deployment's hand",
+  explicitBadImage["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitBadImage["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitBadImage["branded-shell"].includes("http://demo.withsmock.com/alex.png"),
+  "an unusable explicit image fell back to another signer's file",
+);
+// Smudge's own build: overriding only the name must not leave Emma's hand on it.
+for (const k of ENV_KEYS) delete process.env[k];
+clearSignOffEnv();
+const smudgeNameOverride = renderFixtures({
+  ...SMUDGE_AS_EXPLICIT_BRANDING,
+  ownerFirstName: ALEX.ownerFirstName,
+});
+check(
+  "overriding the signer on Smudge's own identity removes Emma's handwriting too",
+  smudgeNameOverride["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !smudgeNameOverride["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    !smudgeNameOverride["class-confirmation-customer"].includes(SMUDGE_DEFAULTS.signOffName),
+  "Emma's signature survived an explicit change of signer",
+);
+setWonkyIdentityEnv();
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
 
 // Fail closed: a sign-off variable with no email identity behind it must not
 // put a second studio's name or signature on a Smudge-shelled email.
@@ -468,7 +528,7 @@ const outOfScope = {
   "hub-shell / hub-email-wrap": "Hub wordmark, nav and copyright stay Smudge-only -- Hub is not part of a studio clone",
   "class-confirmation-customer / -subject": "greeting sentence, the venue \"Location\" card and the subject line are booking body copy, not identity -- out of scope",
   "party-confirmation-customer": "greeting, venue DetailRow, FAQ text and the catering link are booking body copy -- out of scope",
-  "branded-shell / email-wrap (signoff prop)": "the fixtures pass \"Thanks so much,\\nEmma xx\" as the shell's signoff PROP -- caller-supplied body text, not identity, which is why Part 2b asserts on the signature image and its alt instead",
+  "branded-shell / email-wrap (signoff prop)": "the fixtures pass \"Thanks so much,\\nEmma xx\" as the shell's signoff PROP -- caller-supplied body text, not identity, which is why Part 2b asserts on the signature image and its alt instead. Traced 5 Sep 2026 across both apps at origin/main: every clonable caller passes \"Thanks so much,\" or a warmer line with NO name (stripe-studio gift card, at-home, blueprint, holiday and workshop confirmations, change notices); the one caller that passes \"Emma xx\" is hub-migration.tsx through HubShell, and the Hub is Smudge-only",
   "class-confirmation-customer (signature image)": "the class shell has never drawn a signature image, so a studio's STUDIO_EMAIL_SIGNATURE_URL does not add one there -- deliberate, keeps Smudge byte-identical and the two shells honest",
 };
 for (const [k, why] of Object.entries(outOfScope)) console.log(`  i  ${k}: ${why}`);
