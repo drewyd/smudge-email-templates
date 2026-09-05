@@ -129,6 +129,30 @@ export interface StudioEmailIdentity extends Required<StudioBranding> {
   addressLineCompact: string;
   unsubscribeDomain: string;
   contactEmail: string;
+  /**
+   * How the studio says its own name mid-sentence: "Smudge" for Smudge
+   * Artspace. Only the two confirmation SUBJECT lines read it ("Arav's Smudge
+   * Birthday Party is booked!", "Booking Confirmed: Art Play Lab at Smudge").
+   *
+   * Deliberately NOT one of the seven all-or-none fields. A studio that sets
+   * the seven but not STUDIO_SHORT_NAME gets her FULL name here, never Smudge's
+   * short one, so the fail-closed rule still holds (no email ever carries two
+   * studios) without a new variable becoming mandatory for a deployment that
+   * already renders correctly.
+   */
+  studioShortName: string;
+}
+
+/**
+ * The one optional field a caller may pass on top of StudioBranding to name
+ * the studio in a subject line. Both apps' studioIdentity() readers carry a
+ * `studioShortName` (STUDIO_SHORT_NAME / NEXT_PUBLIC_STUDIO_SHORT_NAME), but
+ * their pre-shaped `emailBranding` objects do not, so in practice this field
+ * arrives through the env var below and this is here for a caller that wants
+ * to be explicit.
+ */
+export interface SubjectBranding {
+  studioShortName?: string;
 }
 
 const DEFAULT_EMAIL_IDENTITY: StudioEmailIdentity = {
@@ -139,7 +163,11 @@ const DEFAULT_EMAIL_IDENTITY: StudioEmailIdentity = {
   addressLineCompact: "102 Union Rd, Surrey Hills VIC 3127",
   unsubscribeDomain: "emails.smudgeartspace.com",
   contactEmail: "hello@smudgeartspace.com",
+  studioShortName: "Smudge",
 };
+
+/** Read alongside the seven, never required: see StudioEmailIdentity.studioShortName. */
+const SHORT_NAME_ENV = "STUDIO_SHORT_NAME";
 
 const EMAIL_IDENTITY_ENV = {
   studioName: "STUDIO_NAME",
@@ -196,7 +224,22 @@ function emailIdentityFromEnv(): StudioEmailIdentity | undefined {
     );
   }
 
+  // STUDIO_SHORT_NAME when set, otherwise the one rule below.
+  values.studioShortName = envVar(SHORT_NAME_ENV) ?? shortNameFor(values.studioName!, DEFAULT_EMAIL_IDENTITY);
   return values as StudioEmailIdentity;
+}
+
+/**
+ * The short name for an identity that did not state one, whether it arrived
+ * as an explicit `branding` object or through the seven env vars. One rule:
+ * Smudge Artspace's short name is "Smudge" (so Smudge's own identity, passed
+ * explicitly by either app's emailBranding object or supplied through env,
+ * renders the subject it always has); any other studio's short name is her
+ * full name, because a subject that named a studio and not her short name
+ * must never fall back to Smudge's.
+ */
+function shortNameFor(studioName: string, fallback: StudioEmailIdentity): string {
+  return studioName === fallback.studioName ? fallback.studioShortName : studioName;
 }
 
 /**
@@ -217,27 +260,34 @@ export function resolveStudioEmailIdentity(
     branding.unsubscribeDomain?.trim() &&
     branding.contactEmail?.trim()
   ) {
+    const studioName = branding.studioName.trim();
     return {
-      studioName: branding.studioName.trim(),
+      studioName,
       logoUrl: branding.logoUrl.trim(),
       logoSmallUrl: branding.logoSmallUrl.trim(),
       addressLine: branding.addressLine.trim(),
       addressLineCompact: branding.addressLineCompact.trim(),
       unsubscribeDomain: branding.unsubscribeDomain.trim(),
       contactEmail: branding.contactEmail.trim(),
+      // A complete explicit identity never consults the env (a partial env
+      // must not be able to reject it), so the short name falls back to the
+      // package default, which is only "Smudge" for Smudge's own name.
+      studioShortName: branding.studioShortName?.trim() || shortNameFor(studioName, DEFAULT_EMAIL_IDENTITY),
     };
   }
 
   const base = emailIdentityFromEnv() || DEFAULT_EMAIL_IDENTITY;
   if (branding !== undefined) {
+    const studioName = branding.studioName?.trim() || base.studioName;
     return {
-      studioName: branding.studioName?.trim() || base.studioName,
+      studioName,
       logoUrl: branding.logoUrl?.trim() || base.logoUrl,
       logoSmallUrl: branding.logoSmallUrl?.trim() || base.logoSmallUrl,
       addressLine: branding.addressLine?.trim() || base.addressLine,
       addressLineCompact: branding.addressLineCompact?.trim() || base.addressLineCompact,
       unsubscribeDomain: branding.unsubscribeDomain?.trim() || base.unsubscribeDomain,
       contactEmail: branding.contactEmail?.trim() || base.contactEmail,
+      studioShortName: branding.studioShortName?.trim() || shortNameFor(studioName, base),
     };
   }
 

@@ -22,7 +22,8 @@ import {
   ordinalSuffix,
   renderEmail,
 } from "./branded";
-import type { StudioBranding } from "./branded";
+import type { StudioBranding, SubjectBranding } from "./branded";
+import { resolveStudioEmailIdentity } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -46,13 +47,16 @@ export interface PartyConfirmationParams {
   amount: number;
   bookingId?: string;
   /**
-   * Studio identity for the shared BrandedShell header/footer and the
-   * unsubscribe link only. Everything else in this template (the greeting,
-   * the venue shown in the details card, the FAQ copy) is booking body
-   * content, out of scope for this field, and stays Smudge's own wording
-   * until the venue/catering data itself is threaded per-studio.
+   * Studio identity for the shared BrandedShell header/footer, the
+   * unsubscribe link, and the studio's short name in the customer subject
+   * ("Pip's Smudge Birthday Party is booked!" names the studio; the demo sent
+   * that line from Wonky Comet's domain on 5 Sep 2026). Everything else in
+   * this template (the greeting, the venue shown in the details card, the FAQ
+   * copy) is booking body content, out of scope for this field, and stays
+   * Smudge's own wording until the venue/catering data itself is threaded
+   * per-studio.
    */
-  branding?: StudioBranding & UnsubscribeBranding;
+  branding?: StudioBranding & UnsubscribeBranding & SubjectBranding;
 }
 
 export interface PartyConfirmationResult {
@@ -447,6 +451,6 @@ export function buildPartyConfirmationEmail(
     customerHtml: renderEmail(<PartyConfirmationEmail {...params} />),
     internalHtml: renderEmail(<PartyConfirmationInternalEmail {...params} />),
     resolvedAge: age,
-    customerSubject: `${params.childName.split(" ")[0] || params.childName}'s Smudge Birthday Party is booked!`,
+    customerSubject: `${params.childName.split(" ")[0] || params.childName}'s ${resolveStudioEmailIdentity(params.branding).studioShortName} Birthday Party is booked!`,
   };
 }
