@@ -166,8 +166,13 @@ export interface StudioEmailIdentity extends Required<StudioBranding> {
  */
 export interface SignOffBranding {
   ownerFirstName?: string;
-  /** Must be a plain https URL; anything else is treated as unset. */
-  signatureUrl?: string;
+  /**
+   * Must be a plain https URL; anything else is treated as unset. Accepts
+   * null so a RESOLVED StudioEmailIdentity (whose signatureUrl is
+   * `string | null`) can be handed straight back to any of these entry
+   * points without a cast (cold review, 5 Sep 2026).
+   */
+  signatureUrl?: string | null;
 }
 
 /** The three resolved sign-off fields, moved around as one unit. */
@@ -327,14 +332,25 @@ function signOffFor(studioName: string, explicit?: SignOffBranding): StudioSignO
   }
   for (const source of sources) {
     const name = source.ownerFirstName?.trim();
-    const image = signatureImageUrl(source.signatureUrl);
-    if (!name && !image) continue;
+    // The RAW value, not the validated one: a source that supplied an
+    // unusable signature has still spoken about the sign-off, and must not be
+    // skipped in favour of a later source whose image belongs to someone else
+    // (cold review, 5 Sep 2026).
+    const suppliedImage = source.signatureUrl?.trim();
+    if (!name && !suppliedImage) continue;
     // A source that named nobody still belongs to this studio, so her own
     // name carries the image she supplied.
     const ownerFirstName = name || base.ownerFirstName;
     return {
       ownerFirstName,
-      signatureUrl: image ?? null,
+      // One invariant, and the whole point of this function: an image is only
+      // ever drawn beside the name it belongs to. A usable image from this
+      // source, else the default's image but ONLY while the signer is still
+      // the default's signer (which is what keeps Emma's handwriting on
+      // Smudge's own emails when her deployment names her in env), else none.
+      signatureUrl:
+        signatureImageUrl(suppliedImage) ??
+        (ownerFirstName === base.ownerFirstName ? base.signatureUrl : null),
       // "Emma xx" survives exactly where it belongs: an identity still signed
       // by the name its own default carries. A studio who named herself, or
       // anyone who overrode the name, signs with that name alone.
@@ -1191,7 +1207,7 @@ export function emailWrap(
   bodyHtml: string,
   signoff?: string,
   unsubscribeUrl?: string | null,
-  branding?: StudioBranding,
+  branding?: StudioBranding & SignOffBranding,
 ): string {
   return renderEmail(
     <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl} branding={branding}>

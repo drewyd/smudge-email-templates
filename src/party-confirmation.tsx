@@ -13,6 +13,7 @@
 import * as React from "react";
 import {
   BrandedShell,
+  type SignOffBranding,
   COLORS,
   DetailRow,
   GreenCard,
@@ -52,7 +53,7 @@ export interface PartyConfirmationParams {
    * content, out of scope for this field, and stays Smudge's own wording
    * until the venue/catering data itself is threaded per-studio.
    */
-  branding?: StudioBranding & UnsubscribeBranding;
+  branding?: StudioBranding & UnsubscribeBranding & SignOffBranding;
 }
 
 export interface PartyConfirmationResult {

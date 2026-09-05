@@ -26,6 +26,7 @@ import {
   renderEmail,
   resolveBranding,
   resolveStudioEmailIdentity,
+  type SignOffBranding,
 } from "./branded";
 import type { StudioBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
@@ -78,7 +79,8 @@ export interface ClassConfirmationParams {
    * scope here, tracked separately.
    */
   branding?: StudioBranding &
-    UnsubscribeBranding & {
+    UnsubscribeBranding &
+    SignOffBranding & {
       contactEmail?: string;
       /**
        * Footer address in THIS template's own historical short format

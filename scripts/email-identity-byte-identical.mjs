@@ -37,6 +37,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
+import { resolveStudioEmailIdentity } from "../src/branded.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -488,6 +489,59 @@ check(
     !smudgeNameOverride["class-confirmation-customer"].includes(SMUDGE_DEFAULTS.signOffName),
   "Emma's signature survived an explicit change of signer",
 );
+setWonkyIdentityEnv();
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+// Second cold read, 5 Sep 2026: an override that supplies ONLY an unusable
+// image has still spoken about the sign-off. Skipping it handed the email to
+// the deployment's signer, so a broken URL in a caller's own object drew
+// Tess's handwriting.
+const explicitBadImageNoName = renderFixtures({ ...WONKY, signatureUrl: "http://demo.withsmock.com/alex.png" });
+check(
+  "an override that supplies only an unusable image never falls through to another signer's file",
+  !explicitBadImageNoName["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitBadImageNoName["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    explicitBadImageNoName["branded-shell"].includes(`>${WONKY.studioName}</p>`),
+  "a broken signature URL inherited somebody else's signature",
+);
+// A resolved identity handed straight back in is the same identity.
+const roundTrip = renderFixtures(resolveStudioEmailIdentity());
+check(
+  "a resolved identity passed back in resolves to itself",
+  roundTrip["branded-shell"].includes(`src="${TESS.signatureUrl}" alt="${TESS.ownerFirstName}"`) &&
+    roundTrip["class-confirmation-customer"].includes(`>${TESS.ownerFirstName}</p>`),
+  "the identity did not survive a round trip through its own API",
+);
+
+// Smudge's own deployment, naming Emma in env with no signature variable: her
+// handwriting must stay. Deterministic behaviour the second cold read raised
+// as PLAUSIBLE, closed here by the rule that the default's image travels with
+// the default's signer.
+for (const k of ENV_KEYS) delete process.env[k];
+clearSignOffEnv();
+process.env.STUDIO_NAME = SMUDGE_DEFAULTS.studioName;
+process.env.STUDIO_EMAIL_LOGO_URL = SMUDGE_DEFAULTS.logoUrl;
+process.env.STUDIO_EMAIL_LOGO_SMALL_URL = SMUDGE_DEFAULTS.logoSmallUrl;
+process.env.STUDIO_EMAIL_ADDRESS_LINE = SMUDGE_DEFAULTS.addressLineLong;
+process.env.STUDIO_EMAIL_ADDRESS_LINE_COMPACT = SMUDGE_DEFAULTS.addressLineShort;
+process.env.STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN = SMUDGE_DEFAULTS.unsubscribeDomain;
+process.env.STUDIO_HELLO_ADDRESS = SMUDGE_DEFAULTS.contactEmail;
+process.env.STUDIO_OWNER_FIRST_NAME = SMUDGE_DEFAULTS.ownerFirstName;
+const smudgeNamedInEnv = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (Smudge's own env names Emma, no signature variable)`,
+    smudgeNamedInEnv[key] === baseline[key],
+    "naming Emma in env took Emma's handwriting off Smudge's own email",
+  );
+}
+const smudgeNamedInEnvExplicit = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+check(
+  "the same, with Smudge's explicit branding object on top",
+  Object.keys(baseline).every((key) => smudgeNamedInEnvExplicit[key] === baseline[key]),
+  "explicit Smudge branding over a named env changed Smudge's render",
+);
+
 setWonkyIdentityEnv();
 process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
 process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
