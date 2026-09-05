@@ -318,6 +318,19 @@ const smudgeEnv = renderFixtures(undefined);
 for (const key of Object.keys(baseline)) {
   check(`${key} (Smudge env)`, smudgeEnv[key] === baseline[key], "environment resolution changed Smudge output");
 }
+// Second cold read, 5 Sep 2026: Smudge's own name in STUDIO_NAME, no short
+// name, and Smudge's explicit emailBranding object on top: still "Smudge".
+const smudgeEnvExplicit = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+check(
+  "party-confirmation-subject (Smudge env + explicit Smudge branding)",
+  smudgeEnvExplicit["party-confirmation-subject"] === baseline["party-confirmation-subject"],
+  JSON.stringify(smudgeEnvExplicit["party-confirmation-subject"]),
+);
+check(
+  "class-confirmation-subject (Smudge env + explicit Smudge branding)",
+  smudgeEnvExplicit["class-confirmation-subject"] === baseline["class-confirmation-subject"],
+  JSON.stringify(smudgeEnvExplicit["class-confirmation-subject"]),
+);
 
 // Restore env exactly as found, then prove Part 1's byte-identical baseline
 // still holds once no STUDIO_* vars are set (Smudge's own production env).

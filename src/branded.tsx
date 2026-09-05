@@ -254,8 +254,12 @@ function shortNameFor(studioName: string, fallback: StudioEmailIdentity): string
 function explicitShortName(explicitShort: string | undefined, studioName: string): string {
   const short = explicitShort?.trim();
   if (short) return short;
-  if (studioName === envVar("STUDIO_NAME")) return envVar(SHORT_NAME_ENV) ?? studioName;
-  return shortNameFor(studioName, DEFAULT_EMAIL_IDENTITY);
+  const deploymentShort = studioName === envVar("STUDIO_NAME") ? envVar(SHORT_NAME_ENV) : undefined;
+  // The same one rule as everywhere else: Smudge Artspace is "Smudge" whether
+  // its name arrived explicitly, through env, or both (second cold read,
+  // 5 Sep 2026: STUDIO_NAME set to Smudge's own name with no short name must
+  // not turn Smudge's subject into "Smudge Artspace Birthday Party").
+  return deploymentShort ?? shortNameFor(studioName, DEFAULT_EMAIL_IDENTITY);
 }
 
 /**
