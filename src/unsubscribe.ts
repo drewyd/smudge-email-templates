@@ -24,7 +24,7 @@
  * customer-facing email footers.
  */
 
-import { COLORS, F, resolveEmailTheme, resolveStudioEmailIdentity } from "./branded";
+import { COLORS, resolveEmailTheme, resolveStudioEmailIdentity } from "./branded";
 
 /**
  * Studio branding for the unsubscribe link + compliance footer line. Both
@@ -89,10 +89,7 @@ export function unsubscribeFooterHtml(email?: string | null, branding?: Unsubscr
   const url = buildUnsubscribeUrl(email, branding);
   const studioName = branding?.studioName?.trim() ||
     resolveStudioEmailIdentity(branding).studioName;
-  // F, not theme.fontStack, whenever the studio named no type of her own: the
-  // two spell the same family differently and this line's literal is F's.
-  const theme = resolveEmailTheme();
-  const font = theme.fontsThemed ? `font-family:${theme.fontStack}` : F;
+  const font = resolveEmailTheme().fontDecl;
   return (
     `<p style="${font};font-size:11px;color:${COLORS.textMuted};margin:16px 0 0;text-align:center;line-height:1.6">` +
     `You received this because you booked with ${studioName}. ` +

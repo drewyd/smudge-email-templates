@@ -15,3 +15,4 @@ export * from "./branded";
 export * from "./unsubscribe";
 export * from "./party-confirmation";
 export * from "./class-confirmation";
+export * from "./gift-card";

@@ -139,6 +139,14 @@ export interface EmailTheme {
   fg: EmailForegrounds;
   /** Body/UI stack. Smudge: Montserrat. */
   fontStack: string;
+  /**
+   * The whole `font-family:...` declaration, for the string-built templates
+   * that write CSS by hand. It is `F` verbatim when the studio named no type
+   * of her own: `F` spells Montserrat with no space after each comma,
+   * `FONT_STACK` spells it with one, and both strings ship today in different
+   * emails, so neither may be swapped for the other.
+   */
+  fontDecl: string;
   /** Heading stack. Smudge: the same Montserrat, which is why an unthemed h1 does not move. */
   headingStack: string;
   /** Hub's editorial display face. Never themed -- Hub is Smudge-only. */
@@ -301,6 +309,7 @@ export const DEFAULT_EMAIL_THEME: EmailTheme = {
   colors: SMUDGE_PALETTE,
   fg: { onPrimary: "#ffffff", onGreen: "#ffffff", onOrange: "#ffffff", onPink: "#ffffff" },
   fontStack: FONT_STACK,
+  fontDecl: F,
   headingStack: FONT_STACK,
   hubDisplayStack: HUB_DISPLAY_STACK,
   siteUrl: SITE,
@@ -418,6 +427,7 @@ export function resolveEmailTheme(branding?: ThemeBranding): EmailTheme {
     colors,
     fg,
     fontStack,
+    fontDecl: fontsApplied ? "font-family:" + fontStack : F,
     headingStack,
     hubDisplayStack: HUB_DISPLAY_STACK,
     siteUrl: site || DEFAULT_EMAIL_THEME.siteUrl,

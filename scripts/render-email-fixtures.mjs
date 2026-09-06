@@ -25,6 +25,7 @@ import {
 } from "../src/unsubscribe.ts";
 import { buildClassConfirmationEmail } from "../src/class-confirmation.tsx";
 import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
+import { buildGiftCardRecipientEmail, buildGiftCardBuyerEmail } from "../src/gift-card.ts";
 import * as React from "react";
 
 export function renderFixtures(branding) {
@@ -101,6 +102,31 @@ export function renderFixtures(branding) {
   out["class-confirmation-customer"] = classResult.customerHtml;
   out["class-confirmation-internal"] = classResult.internalHtml;
   out["class-confirmation-subject"] = classResult.subject;
+
+  const giftRecipient = buildGiftCardRecipientEmail({
+    toEmail: "jamie@example.com",
+    toName: "Jamie Nguyen",
+    buyerName: "Priya Shah",
+    code: "SMUDGE-7QK2-9WD4",
+    amountLabel: "$100",
+    message: "Happy birthday, have a wonderful time!",
+    isGift: true,
+    hasCardImage: false,
+    receiptUrl: null,
+    branding,
+  });
+  out["gift-card-recipient"] = giftRecipient.html;
+  out["gift-card-recipient-subject"] = giftRecipient.subject;
+
+  const giftBuyer = buildGiftCardBuyerEmail({
+    buyerEmail: "priya@example.com",
+    buyerName: "Priya Shah",
+    cardCount: 2,
+    receiptUrl: "https://pay.stripe.com/receipts/abc123",
+    branding,
+  });
+  out["gift-card-buyer"] = giftBuyer.html;
+  out["gift-card-buyer-subject"] = giftBuyer.subject;
 
   const partyResult = buildPartyConfirmationEmail(partyFixture);
   out["party-confirmation-customer"] = partyResult.customerHtml;

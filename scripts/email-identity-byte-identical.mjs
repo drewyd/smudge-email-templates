@@ -769,6 +769,8 @@ const STUDIO_SURFACES = [
   "class-confirmation-internal",
   "party-confirmation-customer",
   "party-confirmation-internal",
+  "gift-card-recipient",
+  "gift-card-buyer",
 ];
 const SMUDGE_HEXES = ["#ec6f86", "#099f4a", "#236eaf", "#f37321", "#f9c7d8", "#231f20", "#f0f0f0"];
 
@@ -819,7 +821,13 @@ check(
 );
 
 // --- 4c: the site links follow the studio ---------------------------------
-for (const surface of ["branded-shell", "email-wrap", "party-confirmation-customer", "class-confirmation-customer"]) {
+for (const surface of [
+  "branded-shell",
+  "email-wrap",
+  "party-confirmation-customer",
+  "class-confirmation-customer",
+  "gift-card-recipient",
+]) {
   const html = String(themed[surface]);
   check(
     `${surface} (theme env): no link to smudgeartspace.com`,
@@ -999,6 +1007,7 @@ const outOfScope = {
   "class-confirmation-customer": "the greeting and the \"Location\" card read the studio identity since 6 Sep 2026; what is still Smudge's alone is nothing in this template",
   "party-confirmation-customer": "greeting, Location row and the FAQ follow the studio since 6 Sep 2026; six venue-bound FAQ items are DROPPED or shortened on a clone rather than answered, because this package holds no per-studio parking, caterer or neighbouring cafe. cateringDisplay is caller data (the website's own STUDIO_PARTY_CATERER_* setting since 6 Sep 2026), not a package literal",
   "branded-shell / email-wrap (signoff prop)": "the fixtures pass \"Thanks so much,\\nEmma xx\" as the shell's signoff PROP -- caller-supplied body text, not identity, which is why Part 2b asserts on the signature image and its alt instead. Traced 5 Sep 2026 across both apps at origin/main: every clonable caller passes \"Thanks so much,\" or a warmer line with NO name (stripe-studio gift card, at-home, blueprint, holiday and workshop confirmations, change notices); the one caller that passes \"Emma xx\" is hub-migration.tsx through HubShell, and the Hub is Smudge-only",
+  "gift-card-recipient / -buyer": "moved out of smudge-website's stripe-studio webhook on 6 Sep 2026 (leak F17) and proved byte-identical against the inline version across nineteen branch fixtures: npx tsx scripts/gift-card-byte-identical.mjs",
   "class-confirmation-customer (signature image)": "the class shell has never drawn a signature image, so a studio's STUDIO_EMAIL_SIGNATURE_URL does not add one there -- deliberate, keeps Smudge byte-identical and the two shells honest",
 };
 for (const [k, why] of Object.entries(outOfScope)) console.log(`  i  ${k}: ${why}`);
