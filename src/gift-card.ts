@@ -112,11 +112,23 @@ export function buildGiftCardRecipientEmail(params: GiftCardRecipientParams): Gi
     params;
   const identity = resolveStudioEmailIdentity(branding);
   const s = giftCardStyle(branding);
-  const studio = identity.studioName;
+  // The subject is plain text and takes the name as it is. Everything below
+  // goes into raw markup this file writes by hand, including an alt attribute,
+  // so the name is escaped there. The inline version had a literal in these
+  // places and never had to ask; the moment it became a value read from a
+  // deployment's environment, it did. escapeHtml leaves "Smudge Artspace"
+  // exactly as it was, which is why the byte proof still holds.
+  const subjectStudio = identity.studioName;
+  const studio = escapeHtml(subjectStudio);
+  // Both already came from the caller in the inline version and both are
+  // machine-made (a fixed-alphabet code, a formatted amount), but they land in
+  // the same alt attribute, so they are escaped beside it rather than trusted.
+  const safeAmount = escapeHtml(amountLabel);
+  const safeCode = escapeHtml(code);
 
   const cardBlock = hasCardImage
-    ? `<div style="text-align:center;margin:22px 0;"><img src="cid:gift-card" alt="Your ${amountLabel} ${studio} gift card, code ${code}" width="460" style="display:block;width:100%;max-width:460px;height:auto;margin:0 auto;border-radius:14px;border:1px solid ${s.imageBorder};" /></div>`
-    : `<div style="text-align:center;margin:22px 0;"><table role="presentation" align="center" cellpadding="0" cellspacing="0" style="background-color:${s.tileBg};border-radius:16px;"><tr><td align="center" style="background-color:${s.tileBg};border-radius:16px;padding:28px 44px;"><div style="${s.font};font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:${s.tileInk};margin:0 0 8px;">${studio} Gift Card</div><div style="${s.font};font-size:46px;font-weight:700;line-height:1;color:${s.tileInk};">${amountLabel}</div></td></tr></table></div>`;
+    ? `<div style="text-align:center;margin:22px 0;"><img src="cid:gift-card" alt="Your ${safeAmount} ${studio} gift card, code ${safeCode}" width="460" style="display:block;width:100%;max-width:460px;height:auto;margin:0 auto;border-radius:14px;border:1px solid ${s.imageBorder};" /></div>`
+    : `<div style="text-align:center;margin:22px 0;"><table role="presentation" align="center" cellpadding="0" cellspacing="0" style="background-color:${s.tileBg};border-radius:16px;"><tr><td align="center" style="background-color:${s.tileBg};border-radius:16px;padding:28px 44px;"><div style="${s.font};font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:${s.tileInk};margin:0 0 8px;">${studio} Gift Card</div><div style="${s.font};font-size:46px;font-weight:700;line-height:1;color:${s.tileInk};">${safeAmount}</div></td></tr></table></div>`;
 
   const body = `
             <p style="margin:0 0 14px;text-align:center;">Hi ${escapeHtml(toName)},</p>
@@ -131,7 +143,7 @@ export function buildGiftCardRecipientEmail(params: GiftCardRecipientParams): Gi
                 : ""
             }
             ${cardBlock}
-            <p style="margin:0 0 20px;text-align:center;">${isGift ? "Your" : "The"} code is <strong style="letter-spacing:0.08em;color:${s.codeInk};">${code}</strong>. ${isGift ? "Pop it in when you book and it comes straight off the price, on any class at" : "Whoever you give it to just enters it when they book, and it comes straight off the price, on any class at"} <a href="${s.site}" style="color:${s.linkInk};">${s.siteLabel}</a>.</p>
+            <p style="margin:0 0 20px;text-align:center;">${isGift ? "Your" : "The"} code is <strong style="letter-spacing:0.08em;color:${s.codeInk};">${safeCode}</strong>. ${isGift ? "Pop it in when you book and it comes straight off the price, on any class at" : "Whoever you give it to just enters it when they book, and it comes straight off the price, on any class at"} <a href="${s.site}" style="color:${s.linkInk};">${s.siteLabel}</a>.</p>
             <div style="text-align:center;margin:0;">
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="background-color:${s.buttonBg};border-radius:999px;">
                 <tr><td align="center" style="background-color:${s.buttonBg};border-radius:999px;"><a href="${s.site}/art-classes" style="display:inline-block;padding:14px 34px;${s.font};font-size:14px;font-weight:700;color:${s.buttonInk};text-decoration:none;">${isGift ? "Find your first class" : "Browse our classes"}</a></td></tr>
@@ -142,8 +154,8 @@ export function buildGiftCardRecipientEmail(params: GiftCardRecipientParams): Gi
 
   return {
     subject: isGift
-      ? `Hooray! You've been sent a ${studio} gift card`
-      : `Your ${studio} gift card is ready to give`,
+      ? `Hooray! You've been sent a ${subjectStudio} gift card`
+      : `Your ${subjectStudio} gift card is ready to give`,
     html: emailWrap(
       isGift ? "Hooray!" : "Ready to give!",
       body,

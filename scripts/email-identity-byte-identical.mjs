@@ -40,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
 import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
+import { buildGiftCardRecipientEmail } from "../src/gift-card.ts";
 import {
   resolveStudioEmailIdentity,
   resetEmailThemeWarnings,
@@ -913,6 +914,38 @@ check(
   !String(renderFixtures(undefined)["branded-shell"]).includes("display:none"),
   "a font stack escaped the style attribute",
 );
+// The studio NAME reaches an alt attribute and body copy in the gift-card
+// templates, which write raw markup rather than going through React.
+setThemeEnv();
+{
+  const hostileName = 'Wonky" onerror="alert(1)';
+  const gift = buildGiftCardRecipientEmail({
+    toEmail: "jamie@example.com",
+    toName: "Jamie",
+    buyerName: "Priya",
+    code: "WONKY-1",
+    amountLabel: "$100",
+    isGift: true,
+    hasCardImage: true,
+    branding: { ...WONKY, studioName: hostileName },
+  });
+  check(
+    "gift-card-recipient: a quote in the studio name cannot close the alt attribute",
+    !gift.html.includes('onerror="alert'),
+    "a studio name escaped its attribute",
+  );
+  check(
+    "the studio name is escaped rather than dropped",
+    gift.html.includes("Wonky&quot; onerror=&quot;alert(1)"),
+    "the name stopped appearing at all",
+  );
+  check(
+    "the SUBJECT keeps the name as plain text, unescaped",
+    gift.subject === `Hooray! You've been sent a ${hostileName} gift card`,
+    "a subject line was HTML-escaped, which a mail client shows literally",
+  );
+}
+
 // A quote inside a font stack is legal CSS and would close a style attribute
 // in the templates that build HTML as a string (cold review, 6 Sep 2026).
 setThemeEnv({
