@@ -19,9 +19,11 @@
  *
  * Deliberately NOT a blanket "no Smudge string anywhere" check: nav links,
  * the Hub-only wordmark/copyright, and confirmation-email BODY copy (the
- * greeting, the venue "Location" card, the FAQ, the subject line) are out of
- * scope for this ticket (see L15b.md's "left unchanged" list) and still say
- * Smudge on a clone today. The two lists below say exactly where and why.
+ * greeting, the venue "Location" card, the FAQ) are out of scope for this
+ * ticket (see L15b.md's "left unchanged" list) and still say Smudge on a
+ * clone today. The two SUBJECT lines are in scope since 5 Sep 2026: they read
+ * the studio's short name (STUDIO_SHORT_NAME beside the seven, or her full
+ * name when it is unset, never Smudge's). The lists below say where and why.
  *
  * Run: npx tsx scripts/email-identity-byte-identical.mjs
  * Prove it can fail: change any DEFAULT_BRANDING/DEFAULT_UNSUBSCRIBE_DOMAIN/
@@ -32,11 +34,15 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
+import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const WONKY = {
   studioName: "Wonky Comet Studio",
+  // Not one of the seven: renderFixtures(WONKY) passes it through as an
+  // explicit branding field, and the env-only part sets STUDIO_SHORT_NAME.
+  studioShortName: "Wonky Comet",
   logoUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
   logoSmallUrl: "https://demo.withsmock.com/email-assets/wonky-comet-logo.png",
   addressLine: "14 High Street, Northcote, Victoria, Australia 3070",
@@ -140,6 +146,43 @@ check(
     explicitAgainstPartialEnv?.["unsubscribe-footer-html"].includes(WONKY.unsubscribeDomain),
   "complete explicit branding was rejected by environment values it did not need",
 );
+// Cold review, 5 Sep 2026: the party builder's own branding type allows five
+// fields (StudioBranding + UnsubscribeBranding), and that input rendered fine
+// before the subject line learned to read an identity. It must still.
+// (The CLASS builder's footer has consulted the seven-field identity since
+// L15b and already refused this input against a partial env; only the PARTY
+// builder, whose own type is five fields, is asserted here.)
+let fiveFieldParty;
+try {
+  fiveFieldParty = buildPartyConfirmationEmail({
+    parentName: "Priya Shah",
+    parentEmail: "priya@example.com",
+    parentPhone: "0400 000 000",
+    childName: "Arav Shah",
+    childAge: 6,
+    partyDate: "2026-11-14",
+    partyTime: "10:00:00",
+    theme: "Dinosaur Dig",
+    cateringDisplay: "BYO",
+    amount: 65000,
+    branding: {
+      studioName: WONKY.studioName,
+      logoUrl: WONKY.logoUrl,
+      logoSmallUrl: WONKY.logoSmallUrl,
+      addressLine: WONKY.addressLine,
+      unsubscribeDomain: WONKY.unsubscribeDomain,
+    },
+  });
+} catch (error) {
+  fiveFieldParty = { error };
+}
+check(
+  "a five-field explicit branding (the party builder's own type) still renders against a partial env",
+  fiveFieldParty && !fiveFieldParty.error &&
+    fiveFieldParty.customerSubject === `Arav's ${WONKY.studioName} Birthday Party is booked!` &&
+    fiveFieldParty.customerHtml.includes(WONKY.logoUrl),
+  fiveFieldParty?.error ? String(fiveFieldParty.error) : JSON.stringify(fiveFieldParty?.customerSubject),
+);
 for (const k of ENV_KEYS) delete process.env[k];
 process.env.STUDIO_NAME = WONKY.studioName;
 process.env.STUDIO_HELLO_ADDRESS = WONKY.contactEmail;
@@ -155,6 +198,20 @@ check(
     generalStudioEnv?.["unsubscribe-footer-html"] === baseline["unsubscribe-footer-html"],
   "STUDIO_NAME or STUDIO_HELLO_ADDRESS alone activated a partial email identity",
 );
+process.env.STUDIO_SHORT_NAME = WONKY.studioShortName;
+let shortNameAlone;
+try {
+  shortNameAlone = renderFixtures(undefined);
+} catch {
+  shortNameAlone = undefined;
+}
+check(
+  "STUDIO_SHORT_NAME alone does not put her short name into a Smudge-shelled subject",
+  shortNameAlone?.["party-confirmation-subject"] === baseline["party-confirmation-subject"] &&
+    shortNameAlone?.["class-confirmation-subject"] === baseline["class-confirmation-subject"],
+  "a short name with no email identity behind it reached the subject line (two studios in one email)",
+);
+delete process.env.STUDIO_SHORT_NAME;
 
 console.log("");
 console.log("=== Part 1c: shells resolve identity from ENV ALONE, zero caller involvement ===");
@@ -199,6 +256,32 @@ check(
 );
 check("party-confirmation-customer: shows her name via env alone", envOnly["party-confirmation-customer"].includes(WONKY.studioName));
 
+// Subject lines (5 Sep 2026): the seven are set and STUDIO_SHORT_NAME is not,
+// so the subject carries her FULL name and never Smudge's short one.
+check(
+  "party-confirmation-subject: her full name when STUDIO_SHORT_NAME is unset (never Smudge)",
+  envOnly["party-confirmation-subject"] === `Arav's ${WONKY.studioName} Birthday Party is booked!`,
+  JSON.stringify(envOnly["party-confirmation-subject"]),
+);
+check(
+  "class-confirmation-subject: her full name when STUDIO_SHORT_NAME is unset (never Smudge)",
+  envOnly["class-confirmation-subject"] === `Booking Confirmed: Art Play Lab at ${WONKY.studioName}`,
+  JSON.stringify(envOnly["class-confirmation-subject"]),
+);
+process.env.STUDIO_SHORT_NAME = WONKY.studioShortName;
+const envWithShort = renderFixtures(undefined);
+check(
+  "party-confirmation-subject: her short name via env alone",
+  envWithShort["party-confirmation-subject"] === `Arav's ${WONKY.studioShortName} Birthday Party is booked!`,
+  JSON.stringify(envWithShort["party-confirmation-subject"]),
+);
+check(
+  "class-confirmation-subject: her short name via env alone",
+  envWithShort["class-confirmation-subject"] === `Booking Confirmed: Art Play Lab at ${WONKY.studioShortName}`,
+  JSON.stringify(envWithShort["class-confirmation-subject"]),
+);
+delete process.env.STUDIO_SHORT_NAME;
+
 const partialExplicit = renderFixtures({ studioName: "Wonky Comet Workshops" });
 check(
   "a partial explicit override inherits the coherent environment identity",
@@ -207,6 +290,20 @@ check(
     partialExplicit["unsubscribe-url-with-email"].includes(WONKY.unsubscribeDomain),
   "the explicit field caused the remaining identity fields to fall back to Smudge",
 );
+check(
+  "an explicit studio name other than the deployment's own is used whole in the subject",
+  partialExplicit["party-confirmation-subject"] === "Arav's Wonky Comet Workshops Birthday Party is booked!",
+  JSON.stringify(partialExplicit["party-confirmation-subject"]),
+);
+process.env.STUDIO_SHORT_NAME = WONKY.studioShortName;
+const explicitOwnName = renderFixtures({ ...WONKY, studioShortName: undefined });
+check(
+  "an explicit object naming the deployment's own studio (both apps' emailBranding on a clone) gets STUDIO_SHORT_NAME",
+  explicitOwnName["party-confirmation-subject"] === `Arav's ${WONKY.studioShortName} Birthday Party is booked!` &&
+    explicitOwnName["class-confirmation-subject"] === `Booking Confirmed: Art Play Lab at ${WONKY.studioShortName}`,
+  JSON.stringify(explicitOwnName["party-confirmation-subject"]),
+);
+delete process.env.STUDIO_SHORT_NAME;
 
 console.log("");
 console.log("=== Part 1d: Smudge values supplied through ENV remain byte-identical ===");
@@ -221,6 +318,19 @@ const smudgeEnv = renderFixtures(undefined);
 for (const key of Object.keys(baseline)) {
   check(`${key} (Smudge env)`, smudgeEnv[key] === baseline[key], "environment resolution changed Smudge output");
 }
+// Second cold read, 5 Sep 2026: Smudge's own name in STUDIO_NAME, no short
+// name, and Smudge's explicit emailBranding object on top: still "Smudge".
+const smudgeEnvExplicit = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+check(
+  "party-confirmation-subject (Smudge env + explicit Smudge branding)",
+  smudgeEnvExplicit["party-confirmation-subject"] === baseline["party-confirmation-subject"],
+  JSON.stringify(smudgeEnvExplicit["party-confirmation-subject"]),
+);
+check(
+  "class-confirmation-subject (Smudge env + explicit Smudge branding)",
+  smudgeEnvExplicit["class-confirmation-subject"] === baseline["class-confirmation-subject"],
+  JSON.stringify(smudgeEnvExplicit["class-confirmation-subject"]),
+);
 
 // Restore env exactly as found, then prove Part 1's byte-identical baseline
 // still holds once no STUDIO_* vars are set (Smudge's own production env).
@@ -272,6 +382,29 @@ for (const key of ["unsubscribe-footer-html", "unsubscribe-url-with-email", "uns
 }
 check("unsubscribe-footer-html: shows her studio name in the compliance line", wonky["unsubscribe-footer-html"].includes(WONKY.studioName));
 
+const wonkyNoShort = renderFixtures({ ...WONKY, studioShortName: undefined });
+check(
+  "party-confirmation-subject: explicit branding without a short name uses her full name",
+  wonkyNoShort["party-confirmation-subject"] === `Arav's ${WONKY.studioName} Birthday Party is booked!`,
+  JSON.stringify(wonkyNoShort["party-confirmation-subject"]),
+);
+check(
+  "party-confirmation-subject: explicit short name is used",
+  wonky["party-confirmation-subject"] === `Arav's ${WONKY.studioShortName} Birthday Party is booked!`,
+  JSON.stringify(wonky["party-confirmation-subject"]),
+);
+check(
+  "class-confirmation-subject: explicit short name is used",
+  wonky["class-confirmation-subject"] === `Booking Confirmed: Art Play Lab at ${WONKY.studioShortName}`,
+  JSON.stringify(wonky["class-confirmation-subject"]),
+);
+check(
+  "no subject line carries the Smudge short name for her",
+  ![wonky, wonkyNoShort, envOnly, envWithShort].some(
+    (r) => / Smudge Birthday| at Smudge$/.test(r["party-confirmation-subject"] + " " + r["class-confirmation-subject"]),
+  ),
+);
+
 check("class-confirmation-customer: shows her postal address (compact form) in the footer", wonky["class-confirmation-customer"].includes(WONKY.addressLineCompact));
 check("class-confirmation-customer: shows her contact email in the footer", wonky["class-confirmation-customer"].includes(WONKY.contactEmail));
 check("class-confirmation-customer: no longer shows Smudge's own footer address", !wonky["class-confirmation-customer"].includes(`${SMUDGE_DEFAULTS.studioName} · ${SMUDGE_DEFAULTS.addressLineShort}`));
@@ -281,7 +414,7 @@ console.log("=== Part 3: documented out-of-scope literals (informational only, n
 const outOfScope = {
   "branded-shell / email-wrap": "nav strip + logo href still point at smudgeartspace.com (site routing, not email branding -- out of scope, see L15b.md)",
   "hub-shell / hub-email-wrap": "Hub wordmark, nav and copyright stay Smudge-only -- Hub is not part of a studio clone",
-  "class-confirmation-customer / -subject": "greeting sentence, the venue \"Location\" card and the subject line are booking body copy, not identity -- out of scope",
+  "class-confirmation-customer": "greeting sentence and the venue \"Location\" card are booking body copy, not identity -- out of scope (the subject line reads the studio's short name since 5 Sep 2026)",
   "party-confirmation-customer": "greeting, venue DetailRow, FAQ text and the catering link are booking body copy -- out of scope",
 };
 for (const [k, why] of Object.entries(outOfScope)) console.log(`  i  ${k}: ${why}`);

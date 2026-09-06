@@ -26,8 +26,9 @@ import {
   renderEmail,
   resolveBranding,
   resolveStudioEmailIdentity,
+  resolveStudioShortName,
 } from "./branded";
-import type { StudioBranding } from "./branded";
+import type { StudioBranding, SubjectBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -72,13 +73,14 @@ export interface ClassConfirmationParams {
   /**
    * Studio identity for this template's own header/footer chrome (masthead
    * logo, small footer logo, footer address + contact line, unsubscribe
-   * line) only. The greeting sentence, the "Location" card inside the body
-   * (which shows the venue the class is actually AT, booking data, not
-   * identity) and the subject line stay Smudge's own wording -- out of
-   * scope here, tracked separately.
+   * line) and the studio's short name in the subject line. The greeting
+   * sentence and the "Location" card inside the body (which shows the venue
+   * the class is actually AT, booking data, not identity) stay Smudge's own
+   * wording -- out of scope here, tracked separately.
    */
   branding?: StudioBranding &
-    UnsubscribeBranding & {
+    UnsubscribeBranding &
+    SubjectBranding & {
       contactEmail?: string;
       /**
        * Footer address in THIS template's own historical short format
@@ -734,7 +736,7 @@ export function buildClassConfirmationEmail(
   params: ClassConfirmationParams,
 ): ClassConfirmationResult {
   return {
-    subject: `Booking Confirmed: ${params.className} at Smudge`,
+    subject: `Booking Confirmed: ${params.className} at ${resolveStudioShortName(params.branding)}`,
     customerHtml: renderEmail(<ClassConfirmationEmail {...params} />),
     internalHtml: renderEmail(<ClassConfirmationInternalEmail {...params} />),
   };

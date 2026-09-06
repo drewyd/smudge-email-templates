@@ -105,6 +105,7 @@ export function renderFixtures(branding) {
   const partyResult = buildPartyConfirmationEmail(partyFixture);
   out["party-confirmation-customer"] = partyResult.customerHtml;
   out["party-confirmation-internal"] = partyResult.internalHtml;
+  out["party-confirmation-subject"] = partyResult.customerSubject;
 
   return out;
 }
