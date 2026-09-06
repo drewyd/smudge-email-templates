@@ -69,17 +69,37 @@ clone and the list renumbers itself.
 
 ## Proof
 
-Two scripts, both of which must stay all-OK:
+Three scripts, all of which must stay all-OK:
 
 ```bash
 npx tsx scripts/email-identity-byte-identical.mjs   # 394 checks: identity, sign-off, theme, venue copy
 npx tsx scripts/gift-card-byte-identical.mjs        # 19 fixtures: the moved gift-card bodies
+npx tsx scripts/react-server-condition.mjs          # 9 checks: this package still imports in a server route
 ```
 
 The first renders every entry point against a recorded baseline captured from
 the unmodified code and fails on a single changed byte, then renders the same
 fixtures under a studio's identity and asserts hers appears and Smudge's is
 gone. New fixtures are refused until added to the baseline deliberately.
+
+The third exists because on 6 Sep 2026 this package took both apps' production
+builds down for half an hour and none of the other checks could see it. v0.4.0
+called `React.createContext` at module scope; Next.js collects page data for a
+route handler under React's `react-server` condition, where that function does
+not exist, so `next build` died on every server route that reached us. The two
+drills, `tsc` and 1,838 unit tests all passed with the fault live, because none
+of them resolves this package under that condition and none runs a build. The
+script imports every entry point under it for real, scans `src/` for any React
+export that build lacks, and drills both directions on every run by injecting
+the fault into a throwaway copy and requiring both checks to go red.
+
+**Nothing importable by a server route may call `createContext` or `useContext`.**
+Pass the value as a prop or an argument. 🚨 v0.4.0, v0.4.1 and v0.4.2 all carry
+the fault and must never be pinned anywhere.
+
+⚠️ A pin bump is not proved by a local `next build` alone: a git-pinned dependency
+leaves the OLD package in `node_modules` while `package.json` names the new one,
+which is how the broken version passed its checks. Run `npm ci` first.
 
 ## Publishing
 
