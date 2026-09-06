@@ -467,22 +467,20 @@ export function resolveEmailTheme(branding?: ThemeBranding): EmailTheme {
 }
 
 /**
- * The theme in force for the subtree being rendered. The shells provide it, so
- * DetailRow / GreenCard / GreyCard -- which a template builds BEFORE the shell
- * and hands over as children, and which therefore cannot be given a branding
- * prop -- still paint in the studio's colours. Outside a shell the default
- * applies, which is what keeps the standalone greenCard()/detailRow() string
- * helpers byte-identical.
+ * The theme a helper component paints with, passed explicitly.
+ *
+ * This WAS a React context, which is the obvious answer and the wrong one:
+ * Next.js collects page data for an API route under React's `react-server`
+ * condition, where `React.createContext` does not exist, and importing this
+ * package into the Stripe webhook took `next build` down with
+ * "n.createContext is not a function" (6 Sep 2026). Neither the typecheck nor
+ * 1838 unit tests could see it, because neither runs a production build.
+ *
+ * So the theme travels as a prop. A template that has one passes it; a caller
+ * that does not gets Smudge's, which is what keeps the deprecated standalone
+ * greenCard()/detailRow() string helpers byte-identical.
  */
-const EmailThemeContext = React.createContext<EmailTheme>(DEFAULT_EMAIL_THEME);
-
-export function useEmailTheme(): EmailTheme {
-  return React.useContext(EmailThemeContext);
-}
-
-export function EmailThemeProvider({ theme, children }: { theme: EmailTheme; children: React.ReactNode }) {
-  return <EmailThemeContext.Provider value={theme}>{children}</EmailThemeContext.Provider>;
-}
+export type WithTheme = { theme?: EmailTheme };
 
 /**
  * Studio branding for the shared header/footer chrome -- the email masthead
@@ -1079,10 +1077,12 @@ export interface DetailRowProps {
    */
   value: React.ReactNode;
   marginBottom?: boolean;
+  /** Omit for Smudge's own palette. */
+  theme?: EmailTheme;
 }
 
-export function DetailRow({ label, value, marginBottom = true }: DetailRowProps) {
-  const COLORS = useEmailTheme().colors;
+export function DetailRow({ label, value, marginBottom = true, theme }: DetailRowProps) {
+  const COLORS = (theme ?? DEFAULT_EMAIL_THEME).colors;
   return (
     <div style={marginBottom ? { marginBottom: "12px" } : undefined}>
       <span
@@ -1102,8 +1102,8 @@ export function DetailRow({ label, value, marginBottom = true }: DetailRowProps)
   );
 }
 
-export function GreenCard({ children }: { children: React.ReactNode }) {
-  const theme = useEmailTheme();
+export function GreenCard({ children, theme: supplied }: { children: React.ReactNode } & WithTheme) {
+  const theme = supplied ?? DEFAULT_EMAIL_THEME;
   const COLORS = theme.colors;
   const FONT_STACK = theme.fontStack;
   return (
@@ -1134,8 +1134,8 @@ export function GreenCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function GreyCard({ children }: { children: React.ReactNode }) {
-  const theme = useEmailTheme();
+export function GreyCard({ children, theme: supplied }: { children: React.ReactNode } & WithTheme) {
+  const theme = supplied ?? DEFAULT_EMAIL_THEME;
   const COLORS = theme.colors;
   const FONT_STACK = theme.fontStack;
   return (
@@ -1198,8 +1198,8 @@ const HUB_NAV: NavLink[] = [
   { href: `${SITE}/hub/gallery`, label: "GALLERY", color: COLORS.green },
 ];
 
-function NavStrip({ links }: { links: NavLink[] }) {
-  const FONT_STACK = useEmailTheme().fontStack;
+function NavStrip({ links, theme }: { links: NavLink[] } & WithTheme) {
+  const FONT_STACK = (theme ?? DEFAULT_EMAIL_THEME).fontStack;
   return (
     <table role="presentation" cellPadding={0} cellSpacing={0} border={0}>
       <tbody>
@@ -1296,7 +1296,6 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
   const FONT_STACK = theme.fontStack;
   const SITE = theme.siteUrl;
   return (
-    <EmailThemeProvider theme={theme}>
     <html>
       <head>
         <meta charSet="utf-8" />
@@ -1349,7 +1348,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                     </tr>
                     <tr>
                       <td align="center" style={{ padding: "16px 10px 40px" }}>
-                        <NavStrip links={studioNav(theme)} />
+                        <NavStrip links={studioNav(theme)} theme={theme} />
                       </td>
                     </tr>
                     <tr>
@@ -1472,7 +1471,6 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
         </table>
       </body>
     </html>
-    </EmailThemeProvider>
   );
 }
 

@@ -30,8 +30,7 @@ import {
   resolveStudioVenue,
   usesDefaultStudioIdentity,
   resolveEmailTheme,
-  useEmailTheme,
-  EmailThemeProvider,
+  type EmailTheme,
 } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
@@ -198,8 +197,15 @@ function faqSections(opts: { studioShortName: string; berry: string }): FaqSecti
  * package hold this studio's venue data? Only Smudge's is written into these
  * strings, so only Smudge gets the six venue-bound items in full.
  */
-function FaqSections({ smudge, studioShortName }: { smudge: boolean; studioShortName: string }) {
-  const emailTheme = useEmailTheme();
+function FaqSections({
+  smudge,
+  studioShortName,
+  emailTheme,
+}: {
+  smudge: boolean;
+  studioShortName: string;
+  emailTheme: EmailTheme;
+}) {
   const COLORS = emailTheme.colors;
   const FONT_STACK = emailTheme.fontStack;
   const sections = faqSections({ studioShortName, berry: COLORS.berry }).flatMap((s) => {
@@ -332,7 +338,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         with {childName}.
       </p>
 
-      <GreenCard>
+      <GreenCard theme={emailTheme}>
         <div
           style={{
             textAlign: "center",
@@ -366,22 +372,22 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         </div>
       </GreenCard>
 
-      <GreyCard>
-        <DetailRow label="Child" value={childName} />
-        {age ? <DetailRow label="Age turning" value={String(age)} /> : null}
-        <DetailRow label="Date" value={safeDate} />
-        <DetailRow label="Time" value={partyTime} />
+      <GreyCard theme={emailTheme}>
+        <DetailRow theme={emailTheme} label="Child" value={childName} />
+        {age ? <DetailRow theme={emailTheme} label="Age turning" value={String(age)} /> : null}
+        <DetailRow theme={emailTheme} label="Date" value={safeDate} />
+        <DetailRow theme={emailTheme} label="Time" value={partyTime} />
         {venue ? (
-          <DetailRow
+          <DetailRow theme={emailTheme}
             label="Location"
             value={`${venue.studioName}, ${venue.addressLineCompact}`}
           />
         ) : null}
-        <DetailRow label="Theme" value={theme} />
-        <DetailRow label="Catering" value={cateringDisplay} />
-        {dietaryMedical ? <DetailRow label="Dietary / Medical" value={dietaryMedical} /> : null}
+        <DetailRow theme={emailTheme} label="Theme" value={theme} />
+        <DetailRow theme={emailTheme} label="Catering" value={cateringDisplay} />
+        {dietaryMedical ? <DetailRow theme={emailTheme} label="Dietary / Medical" value={dietaryMedical} /> : null}
         {specialInterests ? (
-          <DetailRow label="Special Interests" value={specialInterests} marginBottom={false} />
+          <DetailRow theme={emailTheme} label="Special Interests" value={specialInterests} marginBottom={false} />
         ) : null}
       </GreyCard>
 
@@ -398,7 +404,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         >
           Everything You Need to Know
         </h2>
-        <FaqSections smudge={smudge} studioShortName={studioShortName} />
+        <FaqSections smudge={smudge} studioShortName={studioShortName} emailTheme={emailTheme} />
       </div>
     </BrandedShell>
   );

@@ -29,8 +29,8 @@ import {
   resolveStudioVenue,
   resolveStudioShortName,
   resolveEmailTheme,
-  useEmailTheme,
-  EmailThemeProvider,
+  DEFAULT_EMAIL_THEME as DEFAULT_CLASS_THEME,
+  type EmailTheme,
   type SignOffBranding,
 } from "./branded";
 import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
@@ -131,8 +131,8 @@ const TIME_MAP: Record<string, Record<number, string>> = {
 /*  Building blocks                                                         */
 /* ----------------------------------------------------------------------- */
 
-function WhiteCard({ children }: { children: React.ReactNode }) {
-  const theme = useEmailTheme();
+function WhiteCard({ children, theme: supplied }: { children: React.ReactNode; theme?: EmailTheme }) {
+  const theme = supplied ?? DEFAULT_CLASS_THEME;
   const COLORS = theme.colors;
   const FONT_STACK = theme.fontStack;
   return (
@@ -162,6 +162,7 @@ function LabelValue({
   marginBottom = true,
   valueColor,
   valueSize = "16px",
+  theme: supplied,
 }: {
   label: string;
   value: React.ReactNode;
@@ -169,8 +170,9 @@ function LabelValue({
   /** Omit for the theme's own body ink -- the default this prop used to hold. */
   valueColor?: string;
   valueSize?: string;
+  theme?: EmailTheme;
 }) {
-  const theme = useEmailTheme();
+  const theme = supplied ?? DEFAULT_CLASS_THEME;
   const COLORS = theme.colors;
   const FONT_STACK = theme.fontStack;
   const ink = valueColor ?? COLORS.text;
@@ -265,7 +267,6 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
   const FONT_STACK = emailTheme.fontStack;
 
   return (
-    <EmailThemeProvider theme={emailTheme}>
     <html>
       <head>
         <meta charSet="utf-8" />
@@ -426,10 +427,10 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         </p>
 
                         {/* Details card */}
-                        <WhiteCard>
-                          <LabelValue label="Class" value={className} />
-                          <LabelValue label="Children" value={childNames} />
-                          <LabelValue
+                        <WhiteCard theme={emailTheme}>
+                          <LabelValue theme={emailTheme} label="Class" value={className} />
+                          <LabelValue theme={emailTheme} label="Children" value={childNames} />
+                          <LabelValue theme={emailTheme}
                             label="Dates"
                             value={
                               <>
@@ -442,16 +443,16 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                               </>
                             }
                           />
-                          {sessionTime ? <LabelValue label="Time" value={sessionTime} /> : null}
+                          {sessionTime ? <LabelValue theme={emailTheme} label="Time" value={sessionTime} /> : null}
                           {giftCard ? (
-                            <LabelValue
+                            <LabelValue theme={emailTheme}
                               label={giftCard.label}
                               value={giftCard.value}
                               valueColor={giftCard.muted ? COLORS.textLight : COLORS.text}
                               valueSize={giftCard.muted ? "15px" : "16px"}
                             />
                           ) : null}
-                          <LabelValue
+                          <LabelValue theme={emailTheme}
                             label="Total Paid"
                             value={`$${amountDollars} AUD`}
                             marginBottom={false}
@@ -459,7 +460,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         </WhiteCard>
 
                         {/* What to bring */}
-                        <WhiteCard>
+                        <WhiteCard theme={emailTheme}>
                           <p
                             style={{
                               fontFamily: FONT_STACK,
@@ -491,7 +492,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
 
                         {/* Location */}
                         {venue ? (
-                        <WhiteCard>
+                        <WhiteCard theme={emailTheme}>
                           <p
                             style={{
                               fontFamily: FONT_STACK,
@@ -666,7 +667,6 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
         </table>
       </body>
     </html>
-    </EmailThemeProvider>
   );
 }
 
@@ -704,7 +704,6 @@ export function ClassConfirmationInternalEmail(params: ClassConfirmationParams) 
   const FONT_STACK = emailTheme.fontStack;
 
   return (
-    <EmailThemeProvider theme={emailTheme}>
     <html>
       <body
         style={{
@@ -769,7 +768,6 @@ export function ClassConfirmationInternalEmail(params: ClassConfirmationParams) 
         </p>
       </body>
     </html>
-    </EmailThemeProvider>
   );
 }
 
