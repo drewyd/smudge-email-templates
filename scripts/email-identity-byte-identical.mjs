@@ -913,6 +913,43 @@ check(
   !String(renderFixtures(undefined)["branded-shell"]).includes("display:none"),
   "a font stack escaped the style attribute",
 );
+// A quote inside a font stack is legal CSS and would close a style attribute
+// in the templates that build HTML as a string (cold review, 6 Sep 2026).
+setThemeEnv({
+  NEXT_PUBLIC_STUDIO_FONT_BODY: 'Arial", x',
+  NEXT_PUBLIC_STUDIO_FONT_HEADING: 'Arial", x',
+});
+{
+  const rendered = renderFixtures(undefined);
+  for (const surface of ["gift-card-recipient", "gift-card-buyer", "branded-shell"]) {
+    const html = String(rendered[surface]);
+    check(
+      `${surface}: a quote in the font stack cannot close a style attribute`,
+      !html.includes('Arial"') && !html.includes("Arial&quot;"),
+      "a font stack escaped its style attribute",
+    );
+  }
+  check(
+    "the quote is normalised rather than the stack rejected",
+    String(rendered["gift-card-recipient"]).includes("font-family:Arial', x"),
+    "a legal quoted font family stopped working",
+  );
+}
+// A URL whose path carries a quote would close an href in the same templates.
+setThemeEnv({ STUDIO_SITE_URL: 'https://demo.example/"onmouseover=alert(1)' });
+{
+  const html = String(renderFixtures(undefined)["gift-card-recipient"]);
+  check(
+    "gift-card-recipient: a quote in the site URL cannot close an href",
+    !html.includes('href="https://demo.example/"'),
+    "a site URL escaped its href attribute",
+  );
+  check(
+    "the site URL is percent-encoded rather than dropped",
+    html.includes("demo.example/%22onmouseover"),
+    "a URL with an unusual path stopped working entirely",
+  );
+}
 setThemeEnv({ STUDIO_SITE_URL: "javascript:alert(1)" });
 {
   const html = String(renderFixtures(undefined)["branded-shell"]);

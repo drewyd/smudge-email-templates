@@ -234,11 +234,20 @@ function cleanHex(value: string | undefined): string | undefined {
 
 function cleanFontStack(value: string | undefined): string | undefined {
   const v = value?.trim();
-  return v && FONT_STACK_RE.test(v) ? v : undefined;
+  if (!v || !FONT_STACK_RE.test(v)) return undefined;
+  // A double quote is legal in a font-family list ("DM Sans", system-ui) and is
+  // exactly what a mail client's own font names carry, so the charset check has
+  // to allow it. It also CLOSES the style attribute in the templates that build
+  // HTML as a string rather than as React, which escapes for them: a stack of
+  // `Arial"` put a bare quote into the markup and everything after it became an
+  // attribute of its own (cold review, 6 Sep 2026). Single quotes do the same
+  // job in CSS, cannot close a double-quoted attribute, and are already how
+  // this package's own default spells Montserrat.
+  return v.replace(/"/g, "'");
 }
 
 function cleanSiteUrl(value: string | undefined): string | undefined {
-  const v = value?.trim().replace(/\/+$/, "");
+  const v = value?.trim();
   if (!v) return undefined;
   let parsed: URL;
   try {
@@ -246,7 +255,12 @@ function cleanSiteUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
-  return parsed.protocol === "https:" ? v : undefined;
+  if (parsed.protocol !== "https:") return undefined;
+  // parsed.href, never the raw input: the URL parser percent-encodes the
+  // characters that would otherwise close an href attribute, and the raw string
+  // would carry them through into markup the string-built templates do not
+  // escape (cold review, 6 Sep 2026).
+  return parsed.href.replace(/\/+$/, "");
 }
 
 /** WCAG relative luminance of an #rrggbb colour. */
