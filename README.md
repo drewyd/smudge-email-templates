@@ -72,7 +72,7 @@ clone and the list renumbers itself.
 Two scripts, both of which must stay all-OK:
 
 ```bash
-npx tsx scripts/email-identity-byte-identical.mjs   # 360 checks: identity, sign-off, theme, venue copy
+npx tsx scripts/email-identity-byte-identical.mjs   # 387 checks: identity, sign-off, theme, venue copy
 npx tsx scripts/gift-card-byte-identical.mjs        # 19 fixtures: the moved gift-card bodies
 ```
 
