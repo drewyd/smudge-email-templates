@@ -56,10 +56,10 @@ const HUB_DISPLAY_STACK = "Georgia, 'Iowan Old Style', 'Noto Serif', 'Times New 
  * `!important` is required to override inline styles since email clients
  * always favour inline over <style>.
  */
-const SHELL_CSS =
+const shellCss = (bgOuter: string, bgCard: string) =>
   ":root{color-scheme:light;supported-color-schemes:light}" +
-  "body,.bg-w,table,td{background-color:#f0f0f0}" +
-  ".card,.card td{background-color:#ffffff}" +
+  `body,.bg-w,table,td{background-color:${bgOuter}}` +
+  `.card,.card td{background-color:${bgCard}}` +
   "@media only screen and (max-width:480px){" +
   "td.m-pad-top{padding:24px 16px 0 !important}" +
   "td.m-pad-body{padding:0 16px 20px !important}" +
@@ -72,6 +72,9 @@ const SHELL_CSS =
   "h1.m-display{font-size:24px !important;line-height:1.15 !important}" +
   "h1.m-hub-display{font-size:30px !important;line-height:1.1 !important}" +
   "}";
+
+/** Smudge's own two grounds, the literal this file shipped before the theme existed. */
+const SHELL_CSS = shellCss("#f0f0f0", "#ffffff");
 
 export const COLORS = {
   primary: "#ec6f86",
@@ -87,6 +90,366 @@ export const COLORS = {
   bgCard: "#ffffff",
   bgContent: "#fafafa",
 } as const;
+
+/* ----------------------------------------------------------------------- */
+/*  Per-studio email theme: palette, type, and the site the links point at  */
+/* ----------------------------------------------------------------------- */
+
+/**
+ * The palette an email actually paints with. Same keys as COLORS above, and
+ * DEFAULT_EMAIL_THEME's palette IS COLORS, so an unthemed render is byte-for-
+ * byte what this package has always sent.
+ *
+ * SEVEN of the twelve keys follow the studio. The other five (textLight,
+ * textMuted, border, bgCard, bgContent) are neutrals -- greys and white that
+ * read correctly under any brand -- and are deliberately not themed: a studio
+ * who set eight brand colours has said nothing about what her card borders
+ * should be, and guessing would be worse than the neutral.
+ */
+export interface EmailPalette {
+  primary: string;
+  green: string;
+  berry: string;
+  orange: string;
+  pink: string;
+  text: string;
+  textLight: string;
+  textMuted: string;
+  border: string;
+  bgOuter: string;
+  bgCard: string;
+  bgContent: string;
+}
+
+/**
+ * The foreground a themed ground needs. White is what this package has always
+ * drawn on its green/orange/melon buttons and tiles, and stays white for every
+ * Smudge render; a studio whose own colour is too light for white text gets her
+ * ink instead, computed per ground (see readableOn).
+ */
+export interface EmailForegrounds {
+  onPrimary: string;
+  onGreen: string;
+  onOrange: string;
+  onPink: string;
+}
+
+export interface EmailTheme {
+  colors: EmailPalette;
+  fg: EmailForegrounds;
+  /** Body/UI stack. Smudge: Montserrat. */
+  fontStack: string;
+  /** Heading stack. Smudge: the same Montserrat, which is why an unthemed h1 does not move. */
+  headingStack: string;
+  /** Hub's editorial display face. Never themed -- Hub is Smudge-only. */
+  hubDisplayStack: string;
+  /** Base URL every nav link and button in the shell points at. */
+  siteUrl: string;
+  /** True when any studio theme was actually applied. For tests and logs, never markup. */
+  themed: boolean;
+  /** True when the studio's own palette was accepted. */
+  paletteThemed: boolean;
+  /**
+   * True when the studio's own type was accepted. Read by the one caller that
+   * cannot use `fontStack` directly: `F` in this file spells Montserrat with no
+   * space after each comma, `FONT_STACK` spells it with one, and both strings
+   * ship today in different emails. A themed studio gets her stack; an unthemed
+   * one has to keep whichever literal its own call site always used.
+   */
+  fontsThemed: boolean;
+}
+
+/**
+ * The colour roles the WEBSITE theme layer defines (smudge-website
+ * src/lib/studio/identity.ts, studioTheme()), mapped onto the palette keys this
+ * package paints with. Six of the site's eight roles map exactly, Smudge's own
+ * value for each is already identical on both sides, and the two that do not
+ * map (accent, decor) have no counterpart in an email. The seventh themed key,
+ * bgOuter, follows the site's page background.
+ *
+ * Deliberately the SAME env names as the site, not a new STUDIO_EMAIL_COLOR_*
+ * set. Three reasons: her confirmation email then matches her website by
+ * construction rather than by someone remembering to change two values; the
+ * names are already set on both demo projects and already classified in
+ * fleet/env-manifest.json; and a second set would be a second place for a
+ * studio's blue to go stale. NEXT_PUBLIC_ is only a name here -- every read in
+ * this package happens server-side inside a webhook, cron or API route.
+ */
+const EMAIL_COLOR_ENV_NAMES: Readonly<Partial<Record<keyof EmailPalette, string>>> = Object.freeze({
+  primary: "NEXT_PUBLIC_STUDIO_COLOR_PRIMARY",
+  berry: "NEXT_PUBLIC_STUDIO_COLOR_SECONDARY",
+  orange: "NEXT_PUBLIC_STUDIO_COLOR_CTA",
+  green: "NEXT_PUBLIC_STUDIO_COLOR_SUCCESS",
+  text: "NEXT_PUBLIC_STUDIO_COLOR_INK",
+  pink: "NEXT_PUBLIC_STUDIO_COLOR_SURFACE",
+  bgOuter: "NEXT_PUBLIC_STUDIO_BACKGROUND_COLOR",
+});
+
+const EMAIL_FONT_ENV_NAMES = Object.freeze({
+  fontStack: "NEXT_PUBLIC_STUDIO_FONT_BODY",
+  headingStack: "NEXT_PUBLIC_STUDIO_FONT_HEADING",
+});
+
+/**
+ * The site whose pages the nav strip and the shell's buttons link to. Its own
+ * variable rather than NEXT_PUBLIC_APP_URL, because that one is per-DEPLOYMENT:
+ * on the dashboard it is the staff dashboard, and a customer's confirmation
+ * must never send her to a staff login.
+ */
+const SITE_URL_ENV = ["STUDIO_SITE_URL", "NEXT_PUBLIC_STUDIO_SITE_URL"] as const;
+
+/**
+ * The optional theme sets a caller may pass instead of, or beside, the env.
+ * Each set is all-or-none in the same way the env sets are.
+ */
+export interface ThemeBranding {
+  /** All seven themed roles or none: a partial palette is rejected whole. */
+  palette?: Partial<EmailPalette>;
+  fontStack?: string;
+  headingStack?: string;
+  siteUrl?: string;
+}
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+/**
+ * A font stack lands inside a style attribute, so it may hold only what a
+ * font-family list needs: letters, digits, spaces, commas, quotes, dots and
+ * hyphens. No semicolon, brace, angle bracket, backslash or slash survives, so
+ * the value can neither close the attribute nor open a second declaration.
+ */
+const FONT_STACK_RE = /^[A-Za-z0-9 ,'".-]{1,200}$/;
+
+function cleanHex(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  return v && HEX_RE.test(v) ? v : undefined;
+}
+
+function cleanFontStack(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  return v && FONT_STACK_RE.test(v) ? v : undefined;
+}
+
+function cleanSiteUrl(value: string | undefined): string | undefined {
+  const v = value?.trim().replace(/\/+$/, "");
+  if (!v) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    return undefined;
+  }
+  return parsed.protocol === "https:" ? v : undefined;
+}
+
+/** WCAG relative luminance of an #rrggbb colour. */
+function luminance(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+}
+
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  const hi = la > lb ? la : lb;
+  const lo = la > lb ? lb : la;
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** WCAG AA for normal text. These buttons are 13-15px bold, so 4.5 is the honest floor. */
+const CONTRAST_FLOOR = 4.5;
+
+/**
+ * The foreground to write on a coloured ground: white while white is readable
+ * (which is every Smudge ground, so nothing moves), otherwise the palette's own
+ * ink. If neither clears the floor the more readable of the two is used and the
+ * deployment is warned by role name -- a confirmation the customer has already
+ * paid for is never failed over a button colour.
+ */
+function readableOn(ground: string, ink: string, unreadable: string[], role: string): string {
+  const white = "#ffffff";
+  const onWhite = contrastRatio(ground, white);
+  if (onWhite >= CONTRAST_FLOOR) return white;
+  const onInk = contrastRatio(ground, ink);
+  if (onInk >= CONTRAST_FLOOR) return ink;
+  unreadable.push(role);
+  return onInk >= onWhite ? ink : white;
+}
+
+const themeWarnings = new Set<string>();
+
+/** One line per distinct problem per process: a webhook must not log per email. */
+function warnTheme(message: string): void {
+  if (themeWarnings.has(message)) return;
+  themeWarnings.add(message);
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[email-theme] ${message}`);
+  }
+}
+
+/** For the drill only: lets one process assert the warning for several themes. */
+export function resetEmailThemeWarnings(): void {
+  themeWarnings.clear();
+}
+
+const SMUDGE_PALETTE: EmailPalette = { ...COLORS };
+
+export const DEFAULT_EMAIL_THEME: EmailTheme = {
+  colors: SMUDGE_PALETTE,
+  fg: { onPrimary: "#ffffff", onGreen: "#ffffff", onOrange: "#ffffff", onPink: "#ffffff" },
+  fontStack: FONT_STACK,
+  headingStack: FONT_STACK,
+  hubDisplayStack: HUB_DISPLAY_STACK,
+  siteUrl: SITE,
+  themed: false,
+  paletteThemed: false,
+  fontsThemed: false,
+};
+
+const THEMED_KEYS = Object.keys(EMAIL_COLOR_ENV_NAMES) as Array<keyof EmailPalette>;
+
+/**
+ * Resolve one coherent theme. Sources in the order every other resolver in this
+ * file uses: an explicit ThemeBranding object, then this deployment's env, then
+ * Smudge's defaults.
+ *
+ * Each SET is all-or-none. A palette missing one role, or carrying one value
+ * that is not `#rrggbb`, is rejected whole and Smudge's palette stands -- a
+ * half-themed email (her blue buttons under our melon nav) is worse than an
+ * unthemed one, and it is the rule the website theme layer already applies. The
+ * two font stacks are a second set under the same rule: neither is named
+ * without the other, because a body face under a heading face from another
+ * brand is the same mistake in type.
+ *
+ * A palette is rejected once more when its ink cannot be read on the white card
+ * it prints on. Every other contrast problem is repairable per ground (see
+ * readableOn); unreadable body text is not.
+ */
+export function resolveEmailTheme(branding?: ThemeBranding): EmailTheme {
+  const unreadable: string[] = [];
+
+  /* ---- palette ---- */
+  const explicit = branding?.palette;
+  const explicitSaidSomething = explicit ? THEMED_KEYS.some((k) => explicit[k] !== undefined) : false;
+
+  let pairs: ReadonlyArray<readonly [keyof EmailPalette, string | undefined]> = [];
+  let source: "explicit" | "env" | "default" = "default";
+  if (explicitSaidSomething) {
+    pairs = THEMED_KEYS.map((k) => [k, cleanHex(explicit![k])] as const);
+    source = "explicit";
+  } else {
+    const fromEnv = THEMED_KEYS.map((k) => [k, cleanHex(envVar(EMAIL_COLOR_ENV_NAMES[k]!))] as const);
+    if (fromEnv.some(([, v]) => v)) {
+      pairs = fromEnv;
+      source = "env";
+    }
+  }
+
+  let colors: EmailPalette = SMUDGE_PALETTE;
+  let paletteApplied = false;
+  if (source !== "default") {
+    const missing = pairs
+      .filter(([, v]) => !v)
+      .map(([k]) => (source === "env" ? EMAIL_COLOR_ENV_NAMES[k]! : String(k)));
+    if (missing.length > 0) {
+      warnTheme(
+        `studio palette ignored: all ${THEMED_KEYS.length} roles must be present and be #rrggbb (missing or malformed: ${missing.join(", ")})`,
+      );
+    } else {
+      const candidate: EmailPalette = { ...SMUDGE_PALETTE };
+      for (const [k, v] of pairs) candidate[k] = v!;
+      if (contrastRatio(candidate.text, candidate.bgCard) < CONTRAST_FLOOR) {
+        warnTheme(
+          `studio palette ignored: its ink is unreadable on the email card (${EMAIL_COLOR_ENV_NAMES.text} against ${candidate.bgCard})`,
+        );
+      } else {
+        colors = candidate;
+        paletteApplied = true;
+      }
+    }
+  }
+
+  /* ---- type ---- */
+  const fontsExplicit = branding?.fontStack !== undefined || branding?.headingStack !== undefined;
+  const bodyRaw = fontsExplicit ? branding?.fontStack : envVar(EMAIL_FONT_ENV_NAMES.fontStack);
+  const headRaw = fontsExplicit ? branding?.headingStack : envVar(EMAIL_FONT_ENV_NAMES.headingStack);
+  let fontStack = DEFAULT_EMAIL_THEME.fontStack;
+  let headingStack = DEFAULT_EMAIL_THEME.headingStack;
+  let fontsApplied = false;
+  if (bodyRaw !== undefined || headRaw !== undefined) {
+    const body = cleanFontStack(bodyRaw);
+    const head = cleanFontStack(headRaw);
+    if (!body || !head) {
+      warnTheme(
+        `studio fonts ignored: set both ${EMAIL_FONT_ENV_NAMES.fontStack} and ${EMAIL_FONT_ENV_NAMES.headingStack}, using letters, digits, spaces, commas, quotes, dots and hyphens only`,
+      );
+    } else {
+      fontStack = body;
+      headingStack = head;
+      fontsApplied = true;
+    }
+  }
+
+  /* ---- site ---- */
+  const siteRaw = branding?.siteUrl ?? SITE_URL_ENV.map((n) => envVar(n)).find((v) => v !== undefined);
+  const site = cleanSiteUrl(siteRaw);
+  if (siteRaw !== undefined && !site) {
+    warnTheme(`studio site URL ignored: ${SITE_URL_ENV[0]} must be an absolute https URL`);
+  }
+
+  // The contrast repair applies ONLY to a palette a studio actually supplied.
+  // Smudge's own grounds keep white text whatever the ratio says: white on the
+  // apple green is 3.3:1, below AA, and that is a pre-existing decision about
+  // Smudge's own brand, not something an identity ticket may quietly restyle.
+  // Recorded in WC-EMAIL-ASSETS-2026-09-06.md as a Smudge accessibility item.
+  const fg: EmailForegrounds = paletteApplied
+    ? {
+        onPrimary: readableOn(colors.primary, colors.text, unreadable, "primary"),
+        onGreen: readableOn(colors.green, colors.text, unreadable, "success"),
+        onOrange: readableOn(colors.orange, colors.text, unreadable, "cta"),
+        onPink: readableOn(colors.pink, colors.text, unreadable, "surface"),
+      }
+    : DEFAULT_EMAIL_THEME.fg;
+
+  const theme: EmailTheme = {
+    colors,
+    fg,
+    fontStack,
+    headingStack,
+    hubDisplayStack: HUB_DISPLAY_STACK,
+    siteUrl: site || DEFAULT_EMAIL_THEME.siteUrl,
+    themed: paletteApplied || fontsApplied || Boolean(site),
+    paletteThemed: paletteApplied,
+    fontsThemed: fontsApplied,
+  };
+  if (unreadable.length > 0) {
+    warnTheme(
+      `no foreground clears ${CONTRAST_FLOOR}:1 on the studio's ${unreadable.join(", ")} colour; the closer of white and her ink is used`,
+    );
+  }
+  return theme;
+}
+
+/**
+ * The theme in force for the subtree being rendered. The shells provide it, so
+ * DetailRow / GreenCard / GreyCard -- which a template builds BEFORE the shell
+ * and hands over as children, and which therefore cannot be given a branding
+ * prop -- still paint in the studio's colours. Outside a shell the default
+ * applies, which is what keeps the standalone greenCard()/detailRow() string
+ * helpers byte-identical.
+ */
+const EmailThemeContext = React.createContext<EmailTheme>(DEFAULT_EMAIL_THEME);
+
+export function useEmailTheme(): EmailTheme {
+  return React.useContext(EmailThemeContext);
+}
+
+export function EmailThemeProvider({ theme, children }: { theme: EmailTheme; children: React.ReactNode }) {
+  return <EmailThemeContext.Provider value={theme}>{children}</EmailThemeContext.Provider>;
+}
 
 /**
  * Studio branding for the shared header/footer chrome -- the email masthead
@@ -539,6 +902,36 @@ export function resolveBranding(branding?: StudioBranding): Required<StudioBrand
   };
 }
 
+/**
+ * The identity, or null when this deployment cannot state one. The seven fields
+ * are all-or-none and resolving them THROWS on a half-set env, which is right
+ * for the header (an email whose sender is unknown must not go out) and wrong
+ * for a venue line inside the body: the party email's own branding type carries
+ * five of the seven, so asking for the other two must not be able to stop a
+ * confirmation the customer has already paid for. A null answer hides the venue
+ * rather than guessing it, which is the same fail-closed rule in a softer place.
+ */
+export function tryResolveStudioEmailIdentity(
+  branding?: Partial<StudioEmailIdentity>,
+): StudioEmailIdentity | null {
+  try {
+    return resolveStudioEmailIdentity(branding);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when the resolved identity is still Smudge's own. The question every
+ * piece of Smudge-specific BODY copy has to ask before it prints: an address,
+ * a caterer, a street or a neighbouring cafe belongs to one studio, and none of
+ * that data is threaded per-studio yet. One rule, one place, so a second such
+ * question cannot answer it differently.
+ */
+export function usesDefaultStudioIdentity(identity: StudioEmailIdentity): boolean {
+  return identity.studioName === DEFAULT_EMAIL_IDENTITY.studioName;
+}
+
 export function escapeHtml(str: string): string {
   if (!str) return "";
   return str
@@ -621,6 +1014,7 @@ export interface DetailRowProps {
 }
 
 export function DetailRow({ label, value, marginBottom = true }: DetailRowProps) {
+  const COLORS = useEmailTheme().colors;
   return (
     <div style={marginBottom ? { marginBottom: "12px" } : undefined}>
       <span
@@ -641,6 +1035,9 @@ export function DetailRow({ label, value, marginBottom = true }: DetailRowProps)
 }
 
 export function GreenCard({ children }: { children: React.ReactNode }) {
+  const theme = useEmailTheme();
+  const COLORS = theme.colors;
+  const FONT_STACK = theme.fontStack;
   return (
     <table
       width="100%"
@@ -654,7 +1051,7 @@ export function GreenCard({ children }: { children: React.ReactNode }) {
             style={{
               padding: "20px 24px",
               background: COLORS.green,
-              color: "#ffffff",
+              color: theme.fg.onGreen,
               fontFamily: FONT_STACK,
               fontWeight: 400,
               fontSize: "15px",
@@ -670,6 +1067,9 @@ export function GreenCard({ children }: { children: React.ReactNode }) {
 }
 
 export function GreyCard({ children }: { children: React.ReactNode }) {
+  const theme = useEmailTheme();
+  const COLORS = theme.colors;
+  const FONT_STACK = theme.fontStack;
   return (
     <table
       width="100%"
@@ -712,12 +1112,17 @@ interface NavLink {
   color: string;
 }
 
-const STUDIO_NAV: NavLink[] = [
-  { href: `${SITE}/art-classes`, label: "CLASSES", color: COLORS.orange },
-  { href: `${SITE}/book/holidays`, label: "HOLIDAY PROGRAMS", color: COLORS.primary },
-  { href: `${SITE}/book/parties`, label: "PARTIES", color: COLORS.green },
-  { href: `${SITE}/gift-shop`, label: "GIFT CARDS", color: COLORS.berry },
-];
+/** The studio nav, in the studio's own colours, pointing at the studio's own site. */
+function studioNav(theme: EmailTheme): NavLink[] {
+  const SITE = theme.siteUrl;
+  const COLORS = theme.colors;
+  return [
+    { href: `${SITE}/art-classes`, label: "CLASSES", color: COLORS.orange },
+    { href: `${SITE}/book/holidays`, label: "HOLIDAY PROGRAMS", color: COLORS.primary },
+    { href: `${SITE}/book/parties`, label: "PARTIES", color: COLORS.green },
+    { href: `${SITE}/gift-shop`, label: "GIFT CARDS", color: COLORS.berry },
+  ];
+}
 
 const HUB_NAV: NavLink[] = [
   { href: `${SITE}/hub`, label: "ART THEMES", color: COLORS.berry },
@@ -726,6 +1131,7 @@ const HUB_NAV: NavLink[] = [
 ];
 
 function NavStrip({ links }: { links: NavLink[] }) {
+  const FONT_STACK = useEmailTheme().fontStack;
   return (
     <table role="presentation" cellPadding={0} cellSpacing={0} border={0}>
       <tbody>
@@ -802,7 +1208,7 @@ export interface BrandedShellProps {
    * STUDIO_EMAIL_SIGNATURE_URL) rather than here, which is what lets a frozen
    * call site that passes nothing still sign as the studio it belongs to.
    */
-  branding?: StudioBranding & SignOffBranding;
+  branding?: StudioBranding & SignOffBranding & ThemeBranding;
   children: React.ReactNode;
 }
 
@@ -814,12 +1220,20 @@ export interface BrandedShellProps {
 export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, children }: BrandedShellProps) {
   const b = resolveBranding(branding);
   const signOff = resolveStudioSignOff(branding);
+  // Local names that SHADOW the module-level Smudge constants, so every
+  // reference below this line paints in the resolved theme and an unthemed
+  // render still reads exactly the literals it always did.
+  const theme = resolveEmailTheme(branding);
+  const COLORS = theme.colors;
+  const FONT_STACK = theme.fontStack;
+  const SITE = theme.siteUrl;
   return (
+    <EmailThemeProvider theme={theme}>
     <html>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-        <style dangerouslySetInnerHTML={{ __html: SHELL_CSS }} />
+        <style dangerouslySetInnerHTML={{ __html: shellCss(COLORS.bgOuter, COLORS.bgCard) }} />
       </head>
       <body
         style={{
@@ -867,7 +1281,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                     </tr>
                     <tr>
                       <td align="center" style={{ padding: "16px 10px 40px" }}>
-                        <NavStrip links={STUDIO_NAV} />
+                        <NavStrip links={studioNav(theme)} />
                       </td>
                     </tr>
                     <tr>
@@ -879,7 +1293,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                         <h1
                           className="m-display"
                           style={{
-                            fontFamily: FONT_STACK,
+                            fontFamily: theme.headingStack,
                             fontSize: "28px",
                             fontWeight: 700,
                             color: COLORS.text,
@@ -990,6 +1404,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
         </table>
       </body>
     </html>
+    </EmailThemeProvider>
   );
 }
 
@@ -1288,7 +1703,7 @@ export function emailWrap(
   bodyHtml: string,
   signoff?: string,
   unsubscribeUrl?: string | null,
-  branding?: StudioBranding & SignOffBranding,
+  branding?: StudioBranding & SignOffBranding & ThemeBranding,
 ): string {
   return renderEmail(
     <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl} branding={branding}>

@@ -27,9 +27,12 @@ import {
   resolveBranding,
   resolveStudioEmailIdentity,
   resolveStudioShortName,
+  resolveEmailTheme,
+  useEmailTheme,
+  EmailThemeProvider,
   type SignOffBranding,
 } from "./branded";
-import type { StudioBranding, SubjectBranding } from "./branded";
+import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -82,7 +85,8 @@ export interface ClassConfirmationParams {
   branding?: StudioBranding &
     UnsubscribeBranding &
     SubjectBranding &
-    SignOffBranding & {
+    SignOffBranding &
+    ThemeBranding & {
       contactEmail?: string;
       /**
        * Footer address in THIS template's own historical short format
@@ -119,6 +123,9 @@ const TIME_MAP: Record<string, Record<number, string>> = {
 /* ----------------------------------------------------------------------- */
 
 function WhiteCard({ children }: { children: React.ReactNode }) {
+  const theme = useEmailTheme();
+  const COLORS = theme.colors;
+  const FONT_STACK = theme.fontStack;
   return (
     <table
       width="100%"
@@ -144,15 +151,20 @@ function LabelValue({
   label,
   value,
   marginBottom = true,
-  valueColor = COLORS.text,
+  valueColor,
   valueSize = "16px",
 }: {
   label: string;
   value: React.ReactNode;
   marginBottom?: boolean;
+  /** Omit for the theme's own body ink -- the default this prop used to hold. */
   valueColor?: string;
   valueSize?: string;
 }) {
+  const theme = useEmailTheme();
+  const COLORS = theme.colors;
+  const FONT_STACK = theme.fontStack;
+  const ink = valueColor ?? COLORS.text;
   return (
     <div style={marginBottom ? { marginBottom: "12px" } : undefined}>
       <span
@@ -173,7 +185,7 @@ function LabelValue({
           fontFamily: FONT_STACK,
           fontWeight: 400,
           fontSize: valueSize,
-          color: valueColor,
+          color: ink,
         }}
       >
         {value}
@@ -234,8 +246,15 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
   const footerAddressLine = identity.addressLineCompact || FOOTER_ADDRESS_FALLBACK;
   const logoSmallSrc = b.logoSmallUrl;
   const contactEmail = identity.contactEmail || CONTACT_EMAIL_FALLBACK;
+  // Local names that SHADOW the module constants above, so every style below
+  // paints in the resolved theme; with no theme set they hold exactly the same
+  // literals they always did.
+  const emailTheme = resolveEmailTheme(branding);
+  const COLORS = emailTheme.colors;
+  const FONT_STACK = emailTheme.fontStack;
 
   return (
+    <EmailThemeProvider theme={emailTheme}>
     <html>
       <head>
         <meta charSet="utf-8" />
@@ -244,9 +263,9 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
           dangerouslySetInnerHTML={{
             __html:
               ":root{color-scheme:light;supported-color-schemes:light}" +
-              "body,.bg-w,table,td{background-color:#f0f0f0}" +
-              ".card,.card td{background-color:#ffffff}" +
-              ".green-hero td{background-color:#099f4a !important}" +
+              `body,.bg-w,table,td{background-color:${COLORS.bgOuter}}` +
+              `.card,.card td{background-color:${COLORS.bgCard}}` +
+              `.green-hero td{background-color:${COLORS.green} !important}` +
               "@media only screen and (max-width:480px){" +
               // The bottom value is NOT zero. The masthead is the two-line
               // Smudge Artspace lockup (800x286, ~72px tall at width 200) and
@@ -300,7 +319,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         align="center"
                         style={{ padding: "40px 20px 32px", backgroundColor: COLORS.bgCard }}
                       >
-                        <a href={SITE} target="_blank" rel="noreferrer">
+                        <a href={emailTheme.siteUrl} target="_blank" rel="noreferrer">
                           <img
                             src={b.logoUrl}
                             alt={b.studioName}
@@ -392,7 +411,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         >
                           {/* Body copy, deliberately left Smudge's own wording -- see the
                               branding field's doc comment above. */}
-                          Thank you for booking with Smudge Artspace! Here are your booking details:
+                          Thank you for booking with {identity.studioName}! Here are your booking details:
                         </p>
 
                         {/* Details card */}
@@ -482,9 +501,9 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                               lineHeight: 1.5,
                             }}
                           >
-                            Smudge Artspace
+                            {identity.studioName}
                             <br />
-                            102 Union Rd, Surrey Hills VIC 3127
+                            {footerAddressLine}
                           </p>
                         </WhiteCard>
 
@@ -632,6 +651,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
         </table>
       </body>
     </html>
+    </EmailThemeProvider>
   );
 }
 
@@ -661,8 +681,15 @@ export function ClassConfirmationInternalEmail(params: ClassConfirmationParams) 
     ["Amount", `$${amountDollars} AUD`],
   ];
   if (giftCardLine) rows.push(["Gift Card", giftCardLine]);
+  // Local names that SHADOW the module constants above, so every style below
+  // paints in the resolved theme; with no theme set they hold exactly the same
+  // literals they always did.
+  const emailTheme = resolveEmailTheme(params.branding);
+  const COLORS = emailTheme.colors;
+  const FONT_STACK = emailTheme.fontStack;
 
   return (
+    <EmailThemeProvider theme={emailTheme}>
     <html>
       <body
         style={{
@@ -727,6 +754,7 @@ export function ClassConfirmationInternalEmail(params: ClassConfirmationParams) 
         </p>
       </body>
     </html>
+    </EmailThemeProvider>
   );
 }
 

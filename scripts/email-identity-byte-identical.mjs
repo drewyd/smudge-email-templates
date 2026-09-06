@@ -40,7 +40,11 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
 import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
-import { resolveStudioEmailIdentity } from "../src/branded.tsx";
+import {
+  resolveStudioEmailIdentity,
+  resetEmailThemeWarnings,
+  contrastRatio,
+} from "../src/branded.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -209,6 +213,24 @@ check(
     fiveFieldParty.customerSubject === `Arav's ${WONKY.studioName} Birthday Party is booked!` &&
     fiveFieldParty.customerHtml.includes(WONKY.logoUrl),
   fiveFieldParty?.error ? String(fiveFieldParty.error) : JSON.stringify(fiveFieldParty?.customerSubject),
+);
+// ...and when it cannot state a venue, it states none. Smudge's own street
+// must never print under another studio's name, which is what an identity
+// that falls back to the default instead of to null would do.
+check(
+  "a five-field explicit branding shows NO venue rather than Smudge's",
+  Boolean(fiveFieldParty) && !fiveFieldParty.error &&
+    !fiveFieldParty.customerHtml.includes("Surrey Hills") &&
+    !fiveFieldParty.customerHtml.includes("Union R") &&
+    !/>Location</.test(fiveFieldParty.customerHtml),
+  "the Location row printed an address the deployment could not confirm",
+);
+check(
+  "a five-field explicit branding drops the venue-bound FAQ items too",
+  Boolean(fiveFieldParty) && !fiveFieldParty.error &&
+    !fiveFieldParty.customerHtml.includes("Car Parking") &&
+    !fiveFieldParty.customerHtml.includes("Sips"),
+  "Smudge's parking and cafe survived onto a studio whose identity could not be resolved",
 );
 for (const k of ENV_KEYS) delete process.env[k];
 process.env.STUDIO_NAME = WONKY.studioName;
@@ -709,12 +731,273 @@ for (const key of Object.keys(baseline)) {
 }
 
 console.log("");
+console.log("=== Part 4: the per-studio email THEME (colours, type, site links, venue copy) ===");
+
+const THEME_ENV = {
+  NEXT_PUBLIC_STUDIO_COLOR_PRIMARY: "#1E3FD8",
+  NEXT_PUBLIC_STUDIO_COLOR_SECONDARY: "#1E3FD8",
+  NEXT_PUBLIC_STUDIO_COLOR_CTA: "#1E3FD8",
+  NEXT_PUBLIC_STUDIO_COLOR_SUCCESS: "#5A5E68",
+  NEXT_PUBLIC_STUDIO_COLOR_INK: "#13161E",
+  NEXT_PUBLIC_STUDIO_COLOR_SURFACE: "#F3EDDF",
+  NEXT_PUBLIC_STUDIO_BACKGROUND_COLOR: "#F3EDDF",
+  NEXT_PUBLIC_STUDIO_FONT_BODY: '"DM Sans", system-ui, sans-serif',
+  NEXT_PUBLIC_STUDIO_FONT_HEADING: '"Bricolage Grotesque", system-ui, sans-serif',
+  STUDIO_SITE_URL: "https://smock-demo-site.vercel.app",
+};
+const THEME_ENV_KEYS = Object.keys(THEME_ENV);
+const savedThemeEnv = Object.fromEntries(THEME_ENV_KEYS.map((k) => [k, process.env[k]]));
+function clearThemeEnv() {
+  for (const k of THEME_ENV_KEYS) delete process.env[k];
+  resetEmailThemeWarnings();
+}
+function setThemeEnv(overrides = {}) {
+  clearThemeEnv();
+  for (const [k, v] of Object.entries({ ...THEME_ENV, ...overrides })) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  resetEmailThemeWarnings();
+}
+
+// The three shells a studio actually receives. Hub is excluded on purpose: it
+// is Smudge-only, and Part 3 records that it stays Smudge's.
+const STUDIO_SURFACES = [
+  "branded-shell",
+  "email-wrap",
+  "class-confirmation-customer",
+  "class-confirmation-internal",
+  "party-confirmation-customer",
+  "party-confirmation-internal",
+];
+const SMUDGE_HEXES = ["#ec6f86", "#099f4a", "#236eaf", "#f37321", "#f9c7d8", "#231f20", "#f0f0f0"];
+
+// --- 4a: no theme env at all -> byte-identical -----------------------------
+clearThemeEnv();
+const themeOff = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (no theme env)`,
+    themeOff[key] === baseline[key],
+    "an unthemed render no longer matches the recorded Smudge baseline",
+  );
+}
+
+// --- 4b: her theme through env alone, no caller involvement ----------------
+setThemeEnv();
+setWonkyIdentityEnv();
+const themed = renderFixtures(undefined);
+for (const surface of STUDIO_SURFACES) {
+  const html = String(themed[surface]);
+  check(
+    `${surface} (theme env): carries her ink`,
+    html.includes("#13161E"),
+    "her ink colour never reached the markup",
+  );
+  check(
+    `${surface} (theme env): carries her body face`,
+    html.includes("DM Sans"),
+    "her body font stack never reached the markup",
+  );
+  for (const hex of SMUDGE_HEXES) {
+    check(
+      `${surface} (theme env): no Smudge ${hex}`,
+      !html.toLowerCase().includes(hex),
+      `Smudge's ${hex} survived into a themed studio's email`,
+    );
+  }
+  check(
+    `${surface} (theme env): no Montserrat`,
+    !html.includes("Montserrat"),
+    "Smudge's Montserrat survived into a themed studio's email",
+  );
+}
+check(
+  "branded-shell (theme env): her heading face is on the h1",
+  String(themed["branded-shell"]).includes("Bricolage Grotesque"),
+  "the heading stack never reached the h1",
+);
+
+// --- 4c: the site links follow the studio ---------------------------------
+for (const surface of ["branded-shell", "email-wrap", "party-confirmation-customer", "class-confirmation-customer"]) {
+  const html = String(themed[surface]);
+  check(
+    `${surface} (theme env): no link to smudgeartspace.com`,
+    !html.includes("www.smudgeartspace.com"),
+    "a link still points at Smudge's own site",
+  );
+  check(
+    `${surface} (theme env): links point at her site`,
+    html.includes("smock-demo-site.vercel.app"),
+    "her own site never reached a link",
+  );
+}
+
+// --- 4d: the venue copy stops naming Smudge's street -----------------------
+{
+  const party = String(themed["party-confirmation-customer"]);
+  const klass = String(themed["class-confirmation-customer"]);
+  for (const [name, html] of [["party", party], ["class", klass]]) {
+    // "Petite" is NOT in this list: cateringDisplay is caller data the fixture
+    // supplies, and the website has its own STUDIO_PARTY_CATERER_* setting for it.
+    for (const word of ["Surrey Hills", "Union R", "Smudge", "Sips", "Montrose"]) {
+      check(
+        `${name}-confirmation-customer (theme env): no "${word}"`,
+        !html.includes(word),
+        `Smudge's own venue copy survived into another studio's confirmation`,
+      );
+    }
+  }
+  check(
+    "party-confirmation-customer (theme env): her own venue is named",
+    party.includes("Wonky Comet Studio,"),
+    "the Location row lost the studio's own name and address",
+  );
+  check(
+    "party-confirmation-customer (theme env): the FAQ renumbers after the drops",
+    party.includes("1. Your Party Theme") &&
+      party.includes("10. Questions?") &&
+      !party.includes("13. Questions?") &&
+      !party.includes("Car Parking"),
+    "the shortened FAQ did not drop three items and renumber the remaining ten",
+  );
+  check(
+    "party-confirmation-customer (theme env): the party bag names her studio",
+    party.includes("Wonky Comet Studio party bag") && !party.includes("Smudge party bag"),
+    "the party bag still belongs to another studio",
+  );
+}
+
+// --- 4e: each set is all-or-none -------------------------------------------
+for (const dropped of ["NEXT_PUBLIC_STUDIO_COLOR_INK", "NEXT_PUBLIC_STUDIO_BACKGROUND_COLOR"]) {
+  setThemeEnv({ [dropped]: undefined });
+  const partial = renderFixtures(undefined);
+  const html = String(partial["branded-shell"]);
+  check(
+    `palette without ${dropped}: rejected whole`,
+    html.includes("#231f20") && !html.includes("#1E3FD8"),
+    "a half-set palette was applied instead of falling back to Smudge's",
+  );
+}
+setThemeEnv({ NEXT_PUBLIC_STUDIO_COLOR_INK: "1E3FD8" });
+check(
+  "palette with a malformed hex: rejected whole",
+  String(renderFixtures(undefined)["branded-shell"]).includes("#231f20"),
+  "a malformed hex was accepted",
+);
+setThemeEnv({ NEXT_PUBLIC_STUDIO_FONT_HEADING: undefined });
+{
+  const html = String(renderFixtures(undefined)["branded-shell"]);
+  check(
+    "fonts without the heading stack: rejected whole",
+    html.includes("Montserrat") && !html.includes("DM Sans"),
+    "a half-set font pair was applied",
+  );
+  check(
+    "fonts rejected does not reject the palette",
+    html.includes("#1E3FD8"),
+    "the two sets are not independent",
+  );
+}
+setThemeEnv({ NEXT_PUBLIC_STUDIO_FONT_BODY: "DM Sans; } body{display:none" });
+check(
+  "a font stack carrying CSS punctuation is refused",
+  !String(renderFixtures(undefined)["branded-shell"]).includes("display:none"),
+  "a font stack escaped the style attribute",
+);
+setThemeEnv({ STUDIO_SITE_URL: "javascript:alert(1)" });
+{
+  const html = String(renderFixtures(undefined)["branded-shell"]);
+  check(
+    "a non-https site URL is refused",
+    !html.includes("javascript:alert"),
+    "a hostile site URL reached an href",
+  );
+  check(
+    "a refused site URL falls back to the default, never to nothing",
+    html.includes("www.smudgeartspace.com"),
+    "the nav lost its href entirely",
+  );
+}
+
+// --- 4f: contrast --------------------------------------------------------
+check(
+  "contrast: white on Smudge's own green is what it always was",
+  contrastRatio("#099f4a", "#ffffff") < 4.5,
+  "the measurement changed; the byte-identical exemption below rests on it",
+);
+clearThemeEnv();
+check(
+  "contrast: Smudge's own grounds keep white text despite that",
+  String(renderFixtures(undefined)["party-confirmation-customer"]).includes("background:#099f4a;color:#ffffff"),
+  "the contrast repair changed Smudge's own render",
+);
+// A pale ground a studio might really pick: the kit's acid.
+setThemeEnv({ NEXT_PUBLIC_STUDIO_COLOR_SUCCESS: "#CDF63B" });
+check(
+  "contrast: a pale studio ground gets her ink, not white",
+  String(renderFixtures(undefined)["party-confirmation-customer"]).includes("background:#CDF63B;color:#13161E"),
+  "white text was written on a ground it cannot be read on",
+);
+
+// --- 4g: an explicit theme beats the env, and a themed palette is one unit --
+clearThemeEnv();
+setThemeEnv();
+{
+  const explicitTheme = renderFixtures({
+    ...WONKY,
+    palette: {
+      primary: "#AA0000",
+      berry: "#AA0000",
+      orange: "#AA0000",
+      green: "#AA0000",
+      text: "#111111",
+      pink: "#EEEEEE",
+      bgOuter: "#EEEEEE",
+    },
+    fontStack: "Verdana, sans-serif",
+    headingStack: "Verdana, sans-serif",
+    siteUrl: "https://example.test",
+  });
+  const html = String(explicitTheme["branded-shell"]);
+  check(
+    "an explicit palette beats the env",
+    html.includes("#AA0000") && !html.includes("#1E3FD8"),
+    "the env palette won over an explicit one",
+  );
+  check(
+    "an explicit site URL beats the env",
+    html.includes("example.test"),
+    "the env site URL won over an explicit one",
+  );
+}
+
+// --- restore -------------------------------------------------------------
+clearThemeEnv();
+for (const k of THEME_ENV_KEYS) {
+  if (savedThemeEnv[k] !== undefined) process.env[k] = savedThemeEnv[k];
+}
+clearSignOffEnv();
+for (const k of ENV_KEYS) {
+  if (savedEnv[k] === undefined) delete process.env[k];
+  else process.env[k] = savedEnv[k];
+}
+const themeRestored = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (theme env restored)`,
+    themeRestored[key] === baseline[key],
+    "the theme drill left the render changed",
+  );
+}
+
+console.log("");
 console.log("=== Part 3: documented out-of-scope literals (informational only, not a failure) ===");
 const outOfScope = {
-  "branded-shell / email-wrap": "nav strip + logo href still point at smudgeartspace.com (site routing, not email branding -- out of scope, see L15b.md)",
+  "branded-shell / email-wrap": "nav strip + logo href follow STUDIO_SITE_URL since 6 Sep 2026; with none set they are Smudge's own, which is the default this baseline records",
   "hub-shell / hub-email-wrap": "Hub wordmark, nav and copyright stay Smudge-only -- Hub is not part of a studio clone",
-  "class-confirmation-customer": "greeting sentence and the venue \"Location\" card are booking body copy, not identity -- out of scope (the subject line reads the studio's short name since 5 Sep 2026)",
-  "party-confirmation-customer": "greeting, venue DetailRow, FAQ text and the catering link are booking body copy -- out of scope",
+  "class-confirmation-customer": "the greeting and the \"Location\" card read the studio identity since 6 Sep 2026; what is still Smudge's alone is nothing in this template",
+  "party-confirmation-customer": "greeting, Location row and the FAQ follow the studio since 6 Sep 2026; six venue-bound FAQ items are DROPPED or shortened on a clone rather than answered, because this package holds no per-studio parking, caterer or neighbouring cafe. cateringDisplay is caller data (the website's own STUDIO_PARTY_CATERER_* setting since 6 Sep 2026), not a package literal",
   "branded-shell / email-wrap (signoff prop)": "the fixtures pass \"Thanks so much,\\nEmma xx\" as the shell's signoff PROP -- caller-supplied body text, not identity, which is why Part 2b asserts on the signature image and its alt instead. Traced 5 Sep 2026 across both apps at origin/main: every clonable caller passes \"Thanks so much,\" or a warmer line with NO name (stripe-studio gift card, at-home, blueprint, holiday and workshop confirmations, change notices); the one caller that passes \"Emma xx\" is hub-migration.tsx through HubShell, and the Hub is Smudge-only",
   "class-confirmation-customer (signature image)": "the class shell has never drawn a signature image, so a studio's STUDIO_EMAIL_SIGNATURE_URL does not add one there -- deliberate, keeps Smudge byte-identical and the two shells honest",
 };

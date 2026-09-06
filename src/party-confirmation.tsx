@@ -23,8 +23,15 @@ import {
   ordinalSuffix,
   renderEmail,
 } from "./branded";
-import type { StudioBranding, SubjectBranding } from "./branded";
-import { resolveStudioShortName } from "./branded";
+import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
+import {
+  resolveStudioShortName,
+  tryResolveStudioEmailIdentity,
+  usesDefaultStudioIdentity,
+  resolveEmailTheme,
+  useEmailTheme,
+  EmailThemeProvider,
+} from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -57,7 +64,7 @@ export interface PartyConfirmationParams {
    * Smudge's own wording until the venue/catering data itself is threaded
    * per-studio.
    */
-  branding?: StudioBranding & UnsubscribeBranding & SubjectBranding & SignOffBranding;
+  branding?: StudioBranding & UnsubscribeBranding & SubjectBranding & SignOffBranding & ThemeBranding;
 }
 
 export interface PartyConfirmationResult {
@@ -72,92 +79,136 @@ export interface PartyConfirmationResult {
 /* ----------------------------------------------------------------------- */
 
 interface FaqSection {
+  /** Smudge's own title, minus the number: the render numbers the list. */
   title: string;
+  /** Smudge's own wording, unchanged. */
   body: React.ReactNode;
+  /** Wording for a studio whose venue this package does not know. `null` drops the item; omitted keeps `body`. */
+  generic?: React.ReactNode | null;
+  /** Title to use with `generic`, when the venue is named in the title too. */
+  genericTitle?: string;
 }
 
-const FAQ_SECTIONS: FaqSection[] = [
-  {
-    title: "1. Your Party Theme",
-    body: "You can change your theme up to a week before your party date. Just reply to this email and we'll swap it over.",
-  },
-  {
-    title: "2. Confirming Guest Numbers",
-    body: "Your party includes up to 12 children. Extra guests are $40 each, up to a maximum of 20 children in total, including the birthday child. Just let us know your final numbers a week before the party.",
-  },
-  {
-    title: "3. What About Adults?",
-    body: "Whether you stay or drop off is completely up to you. Most families with children 7 and over drop off, and with the younger ones a parent usually stays. You're very welcome to settle into our courtyard or grab a coffee across the road.",
-  },
-  {
-    title: "4. Arrival",
-    body: "You're welcome to arrive 15 minutes early to set up any decorations or food. We'll have the space ready for you.",
-  },
-  {
-    title: "5. What to Expect on the Day",
-    body: "Your 2-hour party includes guided art activities tailored to your chosen theme, free play time, and time for cake and food. Our team handles everything so you can enjoy the celebration!",
-  },
-  {
-    title: "6. Catering (Optional)",
-    body: (
-      <>
-        Catering is completely optional, and bringing your own food is always welcome. If
-        you&apos;d like the food taken care of, Petite by Matilda is our favourite local
-        caterer. Have a look at the{" "}
-        <a
-          href="https://www.smudgeartspace.com/book/parties/catering"
-          style={{ color: COLORS.berry }}
-        >
-          catering menu
-        </a>{" "}
-        and email your order directly to{" "}
-        <a href="mailto:catering@matildamontalbert.com" style={{ color: COLORS.berry }}>
-          catering@matildamontalbert.com
-        </a>{" "}
-        at least 7 days before the party. There&apos;s a flat $20 delivery fee.
-      </>
-    ),
-  },
-  {
-    title: "7. BYO Food & Birthday Cake",
-    body: (
-      <>
-        You&apos;re welcome to bring your own food and birthday cake. Please note we are a{" "}
-        <strong>nut-free</strong> venue. We supply the plates, napkins and cake knife, so the food
-        and the cake are all you need to bring.
-      </>
-    ),
-  },
-  {
-    title: "8. Party Bags",
-    body: "Every child takes home their art creations plus a Smudge party bag with a paint tube, paintbrush, stickers, and a lollipop!",
-  },
-  {
-    title: "9. The Space & Courtyard",
-    body: "You'll have exclusive use of our studio space. The courtyard has picnic tables with umbrellas for adults. In case of rain, we'll set up food and cake inside.",
-  },
-  {
-    title: "10. Decorations",
-    body: "You're welcome to bring balloons and table decorations. We'll help you set up when you arrive early.",
-  },
-  {
-    title: "11. Car Parking",
-    body: "Free street parking is available on Union Road and Montrose Street. The Coles Local car park on Montrose Street offers 2 hours free.",
-  },
-  {
-    title: "12. Coffee?",
-    body: "Sips & Stories is right across the road for all your coffee needs!",
-  },
-  {
-    title: "13. Questions?",
-    body: "Simply reply to this email and we'll get back to you as soon as we can.",
-  },
-];
+/**
+ * The thirteen FAQ items, written for the studio the email belongs to.
+ *
+ * Six of them carry data this package does not hold per studio: Smudge's own
+ * caterer, her street, the cafe across the road, her courtyard. On Smudge they
+ * are exactly the words this template has always sent. On any other studio each
+ * one either loses its venue sentence (`generic`) or does not appear at all
+ * (`generic: null`) -- printing Smudge's parking directions under another
+ * studio's name would send a family to the wrong suburb, which is worse than a
+ * shorter FAQ. The remaining venue work (her OWN parking, her OWN caterer) is
+ * the per-studio venue data still to be threaded; see the record.
+ *
+ * Titles carry no number: they are numbered at render time, so a clone's
+ * shortened list still counts 1, 2, 3 and Smudge's own numbering is unchanged.
+ */
+function faqSections(opts: { studioShortName: string; berry: string }): FaqSection[] {
+  const COLORS = { berry: opts.berry };
+  return [
+    {
+      title: "Your Party Theme",
+      body: "You can change your theme up to a week before your party date. Just reply to this email and we'll swap it over.",
+    },
+    {
+      title: "Confirming Guest Numbers",
+      body: "Your party includes up to 12 children. Extra guests are $40 each, up to a maximum of 20 children in total, including the birthday child. Just let us know your final numbers a week before the party.",
+    },
+    {
+      title: "What About Adults?",
+      body: "Whether you stay or drop off is completely up to you. Most families with children 7 and over drop off, and with the younger ones a parent usually stays. You're very welcome to settle into our courtyard or grab a coffee across the road.",
+      generic:
+        "Whether you stay or drop off is completely up to you. Most families with children 7 and over drop off, and with the younger ones a parent usually stays.",
+    },
+    {
+      title: "Arrival",
+      body: "You're welcome to arrive 15 minutes early to set up any decorations or food. We'll have the space ready for you.",
+    },
+    {
+      title: "What to Expect on the Day",
+      body: "Your 2-hour party includes guided art activities tailored to your chosen theme, free play time, and time for cake and food. Our team handles everything so you can enjoy the celebration!",
+    },
+    {
+      title: "Catering (Optional)",
+      body: (
+        <>
+          Catering is completely optional, and bringing your own food is always welcome. If
+          you&apos;d like the food taken care of, Petite by Matilda is our favourite local
+          caterer. Have a look at the{" "}
+          <a
+            href="https://www.smudgeartspace.com/book/parties/catering"
+            style={{ color: COLORS.berry }}
+          >
+            catering menu
+          </a>{" "}
+          and email your order directly to{" "}
+          <a href="mailto:catering@matildamontalbert.com" style={{ color: COLORS.berry }}>
+            catering@matildamontalbert.com
+          </a>{" "}
+          at least 7 days before the party. There&apos;s a flat $20 delivery fee.
+        </>
+      ),
+      generic: null,
+    },
+    {
+      title: "BYO Food & Birthday Cake",
+      body: (
+        <>
+          You&apos;re welcome to bring your own food and birthday cake. Please note we are a{" "}
+          <strong>nut-free</strong> venue. We supply the plates, napkins and cake knife, so the food
+          and the cake are all you need to bring.
+        </>
+      ),
+    },
+    {
+      title: "Party Bags",
+      body: `Every child takes home their art creations plus a ${opts.studioShortName} party bag with a paint tube, paintbrush, stickers, and a lollipop!`,
+    },
+    {
+      title: "The Space & Courtyard",
+      body: "You'll have exclusive use of our studio space. The courtyard has picnic tables with umbrellas for adults. In case of rain, we'll set up food and cake inside.",
+      genericTitle: "The Space",
+      generic: "You'll have exclusive use of our studio space.",
+    },
+    {
+      title: "Decorations",
+      body: "You're welcome to bring balloons and table decorations. We'll help you set up when you arrive early.",
+    },
+    {
+      title: "Car Parking",
+      body: "Free street parking is available on Union Road and Montrose Street. The Coles Local car park on Montrose Street offers 2 hours free.",
+      generic: null,
+    },
+    {
+      title: "Coffee?",
+      body: "Sips & Stories is right across the road for all your coffee needs!",
+      generic: null,
+    },
+    {
+      title: "Questions?",
+      body: "Simply reply to this email and we'll get back to you as soon as we can.",
+    },
+  ];
+}
 
-function FaqSections() {
+/**
+ * `smudge` is the studio's own identity answering one question: does this
+ * package hold this studio's venue data? Only Smudge's is written into these
+ * strings, so only Smudge gets the six venue-bound items in full.
+ */
+function FaqSections({ smudge, studioShortName }: { smudge: boolean; studioShortName: string }) {
+  const emailTheme = useEmailTheme();
+  const COLORS = emailTheme.colors;
+  const FONT_STACK = emailTheme.fontStack;
+  const sections = faqSections({ studioShortName, berry: COLORS.berry }).flatMap((s) => {
+    if (smudge) return [{ title: s.title, body: s.body }];
+    if (s.generic === null) return [];
+    return [{ title: s.genericTitle ?? s.title, body: s.generic ?? s.body }];
+  });
   return (
     <>
-      {FAQ_SECTIONS.map((s) => (
+      {sections.map((s, i) => (
         <div key={s.title} style={{ margin: "0 0 20px" }}>
           <p
             style={{
@@ -168,7 +219,7 @@ function FaqSections() {
               margin: "0 0 8px",
             }}
           >
-            {s.title}
+            {`${i + 1}. ${s.title}`}
           </p>
           <p
             style={{
@@ -231,6 +282,19 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
     ? `${childName}'s ${age}${ordinalSuffix(age)} Birthday Party`
     : `${childName}'s Birthday Party`;
   const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, params.branding);
+  // Local names that SHADOW the module constants above, so every style below
+  // paints in the resolved theme; with no theme set they hold exactly the same
+  // literals they always did.
+  const emailTheme = resolveEmailTheme(params.branding);
+  const COLORS = emailTheme.colors;
+  const FONT_STACK = emailTheme.fontStack;
+  // The venue card and the six venue-bound FAQ items read the studio, not a
+  // literal: her name and her own street come from the same seven-field
+  // identity the header and footer already use, and the items this package
+  // cannot answer for her are dropped rather than answered with Smudge's.
+  const identity = tryResolveStudioEmailIdentity(params.branding);
+  const smudge = identity ? usesDefaultStudioIdentity(identity) : false;
+  const studioShortName = resolveStudioShortName(params.branding);
 
   return (
     <BrandedShell
@@ -261,7 +325,8 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
           textAlign: "center",
         }}
       >
-        Thank you for booking a birthday party at Smudge Artspace! We can&apos;t wait to celebrate
+        Thank you for booking a birthday party at {identity ? identity.studioName : studioShortName}!
+        We can&apos;t wait to celebrate
         with {childName}.
       </p>
 
@@ -304,7 +369,12 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         {age ? <DetailRow label="Age turning" value={String(age)} /> : null}
         <DetailRow label="Date" value={safeDate} />
         <DetailRow label="Time" value={partyTime} />
-        <DetailRow label="Location" value="Smudge Artspace, 102 Union Rd, Surrey Hills VIC 3127" />
+        {identity ? (
+          <DetailRow
+            label="Location"
+            value={`${identity.studioName}, ${identity.addressLineCompact}`}
+          />
+        ) : null}
         <DetailRow label="Theme" value={theme} />
         <DetailRow label="Catering" value={cateringDisplay} />
         {dietaryMedical ? <DetailRow label="Dietary / Medical" value={dietaryMedical} /> : null}
@@ -326,7 +396,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         >
           Everything You Need to Know
         </h2>
-        <FaqSections />
+        <FaqSections smudge={smudge} studioShortName={studioShortName} />
       </div>
     </BrandedShell>
   );
@@ -355,6 +425,12 @@ export function PartyConfirmationInternalEmail(params: PartyConfirmationParams) 
   } = params;
   const age = resolveAge(params);
   const amountDollars = (amount / 100).toFixed(0);
+  // Local names that SHADOW the module constants above, so every style below
+  // paints in the resolved theme; with no theme set they hold exactly the same
+  // literals they always did.
+  const emailTheme = resolveEmailTheme(params.branding);
+  const COLORS = emailTheme.colors;
+  const FONT_STACK = emailTheme.fontStack;
 
   const rows: Array<[string, React.ReactNode]> = [
     ["Parent", parentName],
