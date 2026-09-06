@@ -954,6 +954,41 @@ export function tryResolveStudioEmailIdentity(
   }
 }
 
+/** A studio's own venue: her trading name and the address SHE stated. */
+export interface StudioVenue {
+  studioName: string;
+  addressLineCompact: string;
+}
+
+/**
+ * The venue to print, or null when this deployment cannot state one.
+ *
+ * The identity resolver fills a missing field from Smudge's defaults, which is
+ * right for a logo and catastrophic for a street: a studio who stated her name
+ * and not her address rendered "Wonky Comet Studio, 102 Union Rd, Surrey Hills
+ * VIC 3127" -- her name over Smudge's street, which is worse than saying
+ * Smudge, because it is plausible and a family would drive to it (Drew, 6 Sep
+ * 2026: never invent a studio address).
+ *
+ * So the address has to be HERS, not merely resolved. It is hers when the
+ * identity is Smudge's own throughout, or when the compact address is not
+ * Smudge's default. Anything else answers null and the caller hides the row
+ * rather than filling it.
+ */
+export function resolveStudioVenue(
+  branding?: Partial<StudioEmailIdentity>,
+): StudioVenue | null {
+  const identity = tryResolveStudioEmailIdentity(branding);
+  if (!identity) return null;
+  const address = identity.addressLineCompact?.trim();
+  if (!address) return null;
+  if (usesDefaultStudioIdentity(identity)) {
+    return { studioName: identity.studioName, addressLineCompact: address };
+  }
+  if (address === DEFAULT_EMAIL_IDENTITY.addressLineCompact) return null;
+  return { studioName: identity.studioName, addressLineCompact: address };
+}
+
 /**
  * True when the resolved identity is still Smudge's own. The question every
  * piece of Smudge-specific BODY copy has to ask before it prints: an address,

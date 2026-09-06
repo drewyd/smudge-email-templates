@@ -40,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
 import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
+import { buildClassConfirmationEmail } from "../src/class-confirmation.tsx";
 import { buildGiftCardRecipientEmail } from "../src/gift-card.ts";
 import {
   resolveStudioEmailIdentity,
@@ -1048,6 +1049,79 @@ setThemeEnv();
     html.includes("example.test"),
     "the env site URL won over an explicit one",
   );
+}
+
+// --- 4i: never print an address the studio did not state ------------------
+// Drew, 6 Sep 2026. The identity resolver fills a missing field from Smudge's
+// defaults, which is right for a logo and catastrophic for a street: a studio
+// who stated her name and not her address rendered her name over Smudge's
+// street, which is worse than saying Smudge because a family would drive to it.
+clearThemeEnv();
+clearSignOffEnv();
+for (const k of ENV_KEYS) delete process.env[k];
+{
+  const statedNoAddress = {
+    studioName: WONKY.studioName,
+    logoUrl: WONKY.logoUrl,
+    logoSmallUrl: WONKY.logoSmallUrl,
+    addressLine: "",
+    unsubscribeDomain: WONKY.unsubscribeDomain,
+  };
+  const klass = buildClassConfirmationEmail({
+    parentName: "Jamie Nguyen",
+    parentEmail: "jamie@example.com",
+    className: "Art Play Lab",
+    children: [{ name: "Ruby Nguyen" }],
+    dates: ["2026-10-06"],
+    amountCents: 22500,
+    branding: statedNoAddress,
+  });
+  const party = buildPartyConfirmationEmail({
+    parentName: "Priya Shah",
+    parentEmail: "priya@example.com",
+    parentPhone: "0400 000 000",
+    childName: "Arav Shah",
+    childAge: 6,
+    partyDate: "2026-11-14",
+    partyTime: "10:00:00",
+    theme: "Dinosaur Dig",
+    cateringDisplay: "BYO",
+    amount: 65000,
+    branding: statedNoAddress,
+  });
+  for (const [label, html] of [
+    ["class-confirmation-customer", klass.customerHtml],
+    ["party-confirmation-customer", party.customerHtml],
+  ]) {
+    check(
+      `${label}: a studio who stated no address never gets Smudge's street`,
+      !html.includes("Surrey Hills") && !html.includes("Union R"),
+      "Smudge's own address printed under another studio's name",
+    );
+    check(
+      `${label}: the venue is hidden, not filled with a placeholder`,
+      !html.includes("Address unavailable") && !html.includes("TBC"),
+      "a placeholder was coined for a fact the deployment does not hold",
+    );
+  }
+  check(
+    "class-confirmation-customer: the Location card disappears entirely",
+    !klass.customerHtml.includes(">Location<"),
+    "an empty Location card was left behind",
+  );
+  check(
+    "party-confirmation-customer: the Location row disappears entirely",
+    !party.customerHtml.includes(">Location<"),
+    "an empty Location row was left behind",
+  );
+  check(
+    "the studio is still named everywhere else",
+    klass.customerHtml.includes(WONKY.studioName) && party.customerHtml.includes(WONKY.studioName),
+    "hiding the venue took the studio's name with it",
+  );
+}
+for (const k of ENV_KEYS) {
+  if (savedEnv[k] !== undefined) process.env[k] = savedEnv[k];
 }
 
 // --- 4h: a theme holding SMUDGE'S OWN values renders like no theme at all ---

@@ -26,6 +26,7 @@ import {
   renderEmail,
   resolveBranding,
   resolveStudioEmailIdentity,
+  resolveStudioVenue,
   resolveStudioShortName,
   resolveEmailTheme,
   useEmailTheme,
@@ -51,7 +52,15 @@ import type { UnsubscribeBranding } from "./unsubscribe";
  * quiet copy change on Smudge's own email, which is exactly what this
  * change must not do.
  */
-const FOOTER_ADDRESS_FALLBACK = "102 Union Rd, Surrey Hills VIC 3127";
+/**
+ * Kept as the recorded literal this template's footer carried, and as the one
+ * value resolveStudioVenue() compares against to decide whether an address is
+ * actually the studio's own. Nothing renders it directly any more: an address
+ * that is only this one, under a name that is not Smudge's, means the studio
+ * stated no address and the row is hidden rather than filled (Drew, 6 Sep
+ * 2026: never invent a studio address).
+ */
+export const FOOTER_ADDRESS_FALLBACK = "102 Union Rd, Surrey Hills VIC 3127";
 const CONTACT_EMAIL_FALLBACK = "hello@smudgeartspace.com";
 
 const FONT_STACK = "'Montserrat', Arial, sans-serif";
@@ -243,9 +252,11 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
   const unsubUrl = buildUnsubscribeUrl(parentEmail ?? null, branding);
   const b = resolveBranding(branding);
   const identity = resolveStudioEmailIdentity(branding);
-  const footerAddressLine = identity.addressLineCompact || FOOTER_ADDRESS_FALLBACK;
   const logoSmallSrc = b.logoSmallUrl;
   const contactEmail = identity.contactEmail || CONTACT_EMAIL_FALLBACK;
+  // Null when this deployment cannot state an address that is actually hers.
+  // Both places below then show nothing rather than Smudge's street.
+  const venue = resolveStudioVenue(branding);
   // Local names that SHADOW the module constants above, so every style below
   // paints in the resolved theme; with no theme set they hold exactly the same
   // literals they always did.
@@ -479,6 +490,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         </WhiteCard>
 
                         {/* Location */}
+                        {venue ? (
                         <WhiteCard>
                           <p
                             style={{
@@ -501,11 +513,12 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                               lineHeight: 1.5,
                             }}
                           >
-                            {identity.studioName}
+                            {venue.studioName}
                             <br />
-                            {footerAddressLine}
+                            {venue.addressLineCompact}
                           </p>
                         </WhiteCard>
+                        ) : null}
 
                         {receiptUrl ? (
                           <p
@@ -624,7 +637,9 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             margin: "0 0 4px",
                           }}
                         >
-                          {b.studioName} · {footerAddressLine}
+                          {venue
+                            ? `${venue.studioName} · ${venue.addressLineCompact}`
+                            : b.studioName}
                         </p>
                         <p
                           style={{

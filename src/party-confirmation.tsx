@@ -27,6 +27,7 @@ import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
 import {
   resolveStudioShortName,
   tryResolveStudioEmailIdentity,
+  resolveStudioVenue,
   usesDefaultStudioIdentity,
   resolveEmailTheme,
   useEmailTheme,
@@ -294,6 +295,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
   // cannot answer for her are dropped rather than answered with Smudge's.
   const identity = tryResolveStudioEmailIdentity(params.branding);
   const smudge = identity ? usesDefaultStudioIdentity(identity) : false;
+  const venue = resolveStudioVenue(params.branding);
   const studioShortName = resolveStudioShortName(params.branding);
 
   return (
@@ -369,10 +371,10 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
         {age ? <DetailRow label="Age turning" value={String(age)} /> : null}
         <DetailRow label="Date" value={safeDate} />
         <DetailRow label="Time" value={partyTime} />
-        {identity ? (
+        {venue ? (
           <DetailRow
             label="Location"
-            value={`${identity.studioName}, ${identity.addressLineCompact}`}
+            value={`${venue.studioName}, ${venue.addressLineCompact}`}
           />
         ) : null}
         <DetailRow label="Theme" value={theme} />
