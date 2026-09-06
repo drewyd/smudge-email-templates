@@ -141,6 +141,31 @@ export interface StudioEmailIdentity extends Required<StudioBranding> {
    * already renders correctly.
    */
   studioShortName: string;
+  /**
+   * The first name the email is signed with: "Emma" for Smudge Artspace. It is
+   * the signature image's alt text, and it is what the sign-off says when a
+   * studio has no signature image of her own.
+   *
+   * Deliberately NOT one of the seven all-or-none fields. A studio that sets
+   * the seven and not STUDIO_OWNER_FIRST_NAME signs with her STUDIO's name,
+   * never Emma's, so the fail-closed rule holds (no email is ever signed by
+   * another business's owner) without a new variable becoming mandatory for a
+   * deployment that already renders correctly.
+   */
+  ownerFirstName: string;
+  /**
+   * Full https URL to the owner's handwritten signature image, or null when
+   * the studio has none and the sign-off is her name in plain text. Smudge's
+   * default is Emma's own signature file, the one this package has drawn since
+   * it existed; no other studio ever inherits it.
+   */
+  signatureUrl: string | null;
+  /**
+   * The exact words the sign-off signs with: "Emma xx" for Smudge Artspace,
+   * because the kisses are how Emma signs and not how anyone else does. Every
+   * other studio signs with ownerFirstName on its own.
+   */
+  signOffName: string;
 }
 
 /**
@@ -155,6 +180,31 @@ export interface SubjectBranding {
   studioShortName?: string;
 }
 
+/**
+ * The two optional fields a caller may pass on top of StudioBranding to say
+ * how this studio signs. Both apps' studioIdentity() already carries an owner
+ * first name (STUDIO_OWNER_FIRST_NAME / NEXT_PUBLIC_STUDIO_OWNER_FIRST_NAME),
+ * but their pre-shaped `emailBranding` objects do not, so in practice these
+ * arrive through the env vars below and this shape is here for a caller that
+ * wants to be explicit.
+ */
+export interface SignOffBranding {
+  ownerFirstName?: string;
+  /**
+   * Must be a plain https URL; anything else is treated as unset. Accepts
+   * null so a RESOLVED StudioEmailIdentity (whose signatureUrl is
+   * `string | null`) can be handed straight back to any of these entry
+   * points without a cast (cold review, 5 Sep 2026).
+   */
+  signatureUrl?: string | null;
+}
+
+/** The three resolved sign-off fields, moved around as one unit. */
+export type StudioSignOff = Pick<
+  StudioEmailIdentity,
+  "ownerFirstName" | "signatureUrl" | "signOffName"
+>;
+
 const DEFAULT_EMAIL_IDENTITY: StudioEmailIdentity = {
   studioName: "Smudge Artspace",
   logoUrl: IMG.logo,
@@ -164,10 +214,19 @@ const DEFAULT_EMAIL_IDENTITY: StudioEmailIdentity = {
   unsubscribeDomain: "emails.smudgeartspace.com",
   contactEmail: "hello@smudgeartspace.com",
   studioShortName: "Smudge",
+  ownerFirstName: "Emma",
+  signatureUrl: IMG.emma,
+  signOffName: "Emma xx",
 };
 
 /** Read alongside the seven, never required: see StudioEmailIdentity.studioShortName. */
 const SHORT_NAME_ENV = "STUDIO_SHORT_NAME";
+
+/** Read alongside the seven, never required: see the three fields above. */
+const SIGN_OFF_ENV = {
+  ownerFirstName: "STUDIO_OWNER_FIRST_NAME",
+  signatureUrl: "STUDIO_EMAIL_SIGNATURE_URL",
+} as const;
 
 const EMAIL_IDENTITY_ENV = {
   studioName: "STUDIO_NAME",
@@ -226,7 +285,128 @@ function emailIdentityFromEnv(): StudioEmailIdentity | undefined {
 
   // STUDIO_SHORT_NAME when set, otherwise the one rule below.
   values.studioShortName = envVar(SHORT_NAME_ENV) ?? shortNameFor(values.studioName!, DEFAULT_EMAIL_IDENTITY);
-  return values as StudioEmailIdentity;
+  return { ...(values as StudioEmailIdentity), ...signOffFor(values.studioName as string) };
+}
+
+/**
+ * A signature image is drawn only when its URL is a plain https one. http, a
+ * relative path, a data: URI, a javascript: URL and a malformed string are all
+ * treated as unset, and the sign-off falls back to the studio's name in plain
+ * text.
+ *
+ * Deliberately does NOT throw, which is the opposite call from the seven
+ * all-or-none fields. Those decide WHO an email is from, so a half-set one has
+ * to stop the send; this decides how the email is signed, and no decoration is
+ * worth failing a confirmation the customer has already paid for. Either way
+ * an unusable value never reaches the markup.
+ */
+function signatureImageUrl(value: string | null | undefined): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  return parsed.protocol === "https:" ? raw : undefined;
+}
+
+/**
+ * How a studio signs when she has said nothing about it. One rule, the same
+ * shape as every other default here: Smudge Artspace signs the way it always
+ * has, Emma's name over her handwritten signature file; ANY other studio signs
+ * with her own studio name and no image at all, because a clone's confirmation
+ * must never end in another business owner's handwriting.
+ */
+function defaultSignOff(studioName: string): StudioSignOff {
+  if (studioName === DEFAULT_EMAIL_IDENTITY.studioName) {
+    return {
+      ownerFirstName: DEFAULT_EMAIL_IDENTITY.ownerFirstName,
+      signatureUrl: DEFAULT_EMAIL_IDENTITY.signatureUrl,
+      signOffName: DEFAULT_EMAIL_IDENTITY.signOffName,
+    };
+  }
+  return { ownerFirstName: studioName, signatureUrl: null, signOffName: studioName };
+}
+
+/**
+ * The sign-off for one resolved studio name. Sources are tried in order and
+ * the FIRST one that says anything about the sign-off answers BOTH fields:
+ * an explicit branding object, then this deployment's own two variables (only
+ * when the name being resolved IS the deployment's STUDIO_NAME, so a caller
+ * who hands Smudge's identity to a studio's build is not signed by that
+ * studio, nor the other way round), then the default above.
+ *
+ * The name and the image are never taken from different sources. Reading them
+ * independently looked harmless and put one person's name over another
+ * person's handwriting: an explicit ownerFirstName with no image of its own
+ * kept the deployment's signature file, so an email signed "Alex" was drawn in
+ * Tess's hand, and on Smudge in Emma's (cold review, 5 Sep 2026). A signer who
+ * brought no image signs in plain text.
+ *
+ * Never consults the seven-field env identity, so an explicit branding object
+ * is never rejected by a half-set env it did not ask about.
+ */
+function signOffFor(studioName: string, explicit?: SignOffBranding): StudioSignOff {
+  const base = defaultSignOff(studioName);
+  const ownDeployment = studioName === envVar(EMAIL_IDENTITY_ENV.studioName);
+  const sources: SignOffBranding[] = [
+    { ownerFirstName: explicit?.ownerFirstName, signatureUrl: explicit?.signatureUrl },
+  ];
+  if (ownDeployment) {
+    sources.push({
+      ownerFirstName: envVar(SIGN_OFF_ENV.ownerFirstName),
+      signatureUrl: envVar(SIGN_OFF_ENV.signatureUrl),
+    });
+  }
+  for (const source of sources) {
+    const name = source.ownerFirstName?.trim();
+    // The RAW value, not the validated one: a source that supplied an
+    // unusable signature has still spoken about the sign-off, and must not be
+    // skipped in favour of a later source whose image belongs to someone else
+    // (cold review, 5 Sep 2026).
+    const suppliedImage = source.signatureUrl?.trim();
+    if (!name && !suppliedImage) continue;
+    // A source that named nobody still belongs to this studio, so her own
+    // name carries the image she supplied.
+    const ownerFirstName = name || base.ownerFirstName;
+    return {
+      ownerFirstName,
+      // One invariant, and the whole point of this function: an image is only
+      // ever drawn beside the name it belongs to. A usable image from this
+      // source, else the default's image but ONLY while the signer is still
+      // the default's signer (which is what keeps Emma's handwriting on
+      // Smudge's own emails when her deployment names her in env), else none.
+      signatureUrl:
+        signatureImageUrl(suppliedImage) ??
+        (ownerFirstName === base.ownerFirstName ? base.signatureUrl : null),
+      // "Emma xx" survives exactly where it belongs: an identity still signed
+      // by the name its own default carries. A studio who named herself, or
+      // anyone who overrode the name, signs with that name alone.
+      signOffName: ownerFirstName === base.ownerFirstName ? base.signOffName : ownerFirstName,
+    };
+  }
+  return base;
+}
+
+/**
+ * The sign-off for a shell that holds only a `branding` prop. An explicit
+ * studio name answers from its own fields and never throws; with no name at
+ * all the deployment's identity answers, the same way every shell already
+ * resolves it.
+ */
+export function resolveStudioSignOff(
+  branding?: Partial<StudioEmailIdentity> & SignOffBranding,
+): StudioSignOff {
+  const explicitName = branding?.studioName?.trim();
+  if (explicitName) return signOffFor(explicitName, branding);
+  const identity = resolveStudioEmailIdentity(branding);
+  return {
+    ownerFirstName: identity.ownerFirstName,
+    signatureUrl: identity.signatureUrl,
+    signOffName: identity.signOffName,
+  };
 }
 
 /**
@@ -285,7 +465,7 @@ export function resolveStudioShortName(
  * clone from silently sending an email containing two studios' details.
  */
 export function resolveStudioEmailIdentity(
-  branding?: Partial<StudioEmailIdentity>,
+  branding?: Partial<StudioEmailIdentity> & SignOffBranding,
 ): StudioEmailIdentity {
   if (
     branding?.studioName?.trim() &&
@@ -306,6 +486,7 @@ export function resolveStudioEmailIdentity(
       unsubscribeDomain: branding.unsubscribeDomain.trim(),
       contactEmail: branding.contactEmail.trim(),
       studioShortName: explicitShortName(branding.studioShortName, studioName),
+      ...signOffFor(studioName, branding),
     };
   }
 
@@ -321,6 +502,7 @@ export function resolveStudioEmailIdentity(
       unsubscribeDomain: branding.unsubscribeDomain?.trim() || base.unsubscribeDomain,
       contactEmail: branding.contactEmail?.trim() || base.contactEmail,
       studioShortName: branding.studioShortName?.trim() || shortNameFor(studioName, base),
+      ...signOffFor(studioName, branding),
     };
   }
 
@@ -613,17 +795,25 @@ export interface BrandedShellProps {
    * above the "Thanks so much, / Emma" sign-off.
    */
   unsubscribeUrl?: string | null;
-  /** Studio identity for the logo, alt text, copyright line and compliance line. Omit for Smudge's own defaults. */
-  branding?: StudioBranding;
+  /**
+   * Studio identity for the logo, alt text, copyright line, compliance line
+   * and the sign-off. Omit for Smudge's own defaults. The two sign-off fields
+   * normally arrive through the deployment's env (STUDIO_OWNER_FIRST_NAME,
+   * STUDIO_EMAIL_SIGNATURE_URL) rather than here, which is what lets a frozen
+   * call site that passes nothing still sign as the studio it belongs to.
+   */
+  branding?: StudioBranding & SignOffBranding;
   children: React.ReactNode;
 }
 
 /**
- * Full-fat Smudge Studio email shell: logo, multi-colour studio nav,
- * centered <h1> heading, body slot, Emma signature, footer copyright.
+ * Full-fat studio email shell: logo, multi-colour studio nav, centered <h1>
+ * heading, body slot, the owner's sign-off (Emma's signature image on Smudge's
+ * own identity) and the footer copyright.
  */
 export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, children }: BrandedShellProps) {
   const b = resolveBranding(branding);
+  const signOff = resolveStudioSignOff(branding);
   return (
     <html>
       <head>
@@ -718,18 +908,32 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                             {signoff}
                           </p>
                         ) : null}
-                        <img
-                          src={IMG.emma}
-                          alt="Emma"
-                          width="120"
-                          style={{
-                            display: "block",
-                            maxWidth: "120px",
-                            height: "auto",
-                            border: 0,
-                            margin: "0 auto 16px",
-                          }}
-                        />
+                        {signOff.signatureUrl ? (
+                          <img
+                            src={signOff.signatureUrl}
+                            alt={signOff.ownerFirstName}
+                            width="120"
+                            style={{
+                              display: "block",
+                              maxWidth: "120px",
+                              height: "auto",
+                              border: 0,
+                              margin: "0 auto 16px",
+                            }}
+                          />
+                        ) : (
+                          <p
+                            style={{
+                              fontFamily: FONT_STACK,
+                              fontWeight: 400,
+                              fontSize: "16px",
+                              color: COLORS.text,
+                              margin: "0 0 16px",
+                            }}
+                          >
+                            {signOff.signOffName}
+                          </p>
+                        )}
                         <LogoSmall src={b.logoSmallUrl} alt={b.studioName} />
                       </td>
                     </tr>
@@ -1084,7 +1288,7 @@ export function emailWrap(
   bodyHtml: string,
   signoff?: string,
   unsubscribeUrl?: string | null,
-  branding?: StudioBranding,
+  branding?: StudioBranding & SignOffBranding,
 ): string {
   return renderEmail(
     <BrandedShell heading={heading} signoff={signoff} unsubscribeUrl={unsubscribeUrl} branding={branding}>

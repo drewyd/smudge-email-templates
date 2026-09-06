@@ -17,6 +17,11 @@
  *      scope, and the Smudge literal that used to sit there is gone from
  *      THAT field specifically.
  *
+ * Since 5 Sep 2026 it also covers the SIGN-OFF (leak F17): the handwritten
+ * signature image at the foot of every BrandedShell email was Emma's file on
+ * Smudge's domain whatever identity the rest of the email carried, and the
+ * class confirmation signed "Emma xx" in text. Part 2b below is that section.
+ *
  * Deliberately NOT a blanket "no Smudge string anywhere" check: nav links,
  * the Hub-only wordmark/copyright, and confirmation-email BODY copy (the
  * greeting, the venue "Location" card, the FAQ) are out of scope for this
@@ -35,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { renderFixtures } from "./render-email-fixtures.mjs";
 import { buildPartyConfirmationEmail } from "../src/party-confirmation.tsx";
+import { resolveStudioEmailIdentity } from "../src/branded.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -59,7 +65,28 @@ const SMUDGE_DEFAULTS = {
   addressLineShort: "102 Union Rd, Surrey Hills VIC 3127",
   unsubscribeDomain: "emails.smudgeartspace.com",
   contactEmail: "hello@smudgeartspace.com",
+  signatureUrl: "https://www.smudgeartspace.com/email-assets/emma-signature.png",
+  ownerFirstName: "Emma",
+  signOffName: "Emma xx",
 };
+
+// The two optional sign-off fields, kept OUT of WONKY on purpose: WONKY is the
+// seven all-or-none fields and nothing else, so every case below can choose
+// whether this studio has told us who signs her email.
+const TESS = {
+  ownerFirstName: "Tess",
+  signatureUrl: "https://demo.withsmock.com/email-assets/tess-signature.png",
+};
+// A SECOND signer, distinct from Emma and from the env's Tess, so an explicit
+// override can be told apart from the environment it is meant to beat (cold
+// review, 5 Sep 2026: the first version of that check passed the same values
+// the env already held, and still passed when both explicit reads were
+// disabled).
+const ALEX = {
+  ownerFirstName: "Alex",
+  signatureUrl: "https://demo.withsmock.com/email-assets/alex-signature.png",
+};
+const SIGN_OFF_ENV_KEYS = ["STUDIO_OWNER_FIRST_NAME", "STUDIO_EMAIL_SIGNATURE_URL"];
 
 // A FULLY POPULATED branding object holding exactly Smudge's own default
 // values -- the shape every real call site actually passes (identity.ts's
@@ -410,12 +437,286 @@ check("class-confirmation-customer: shows her contact email in the footer", wonk
 check("class-confirmation-customer: no longer shows Smudge's own footer address", !wonky["class-confirmation-customer"].includes(`${SMUDGE_DEFAULTS.studioName} · ${SMUDGE_DEFAULTS.addressLineShort}`));
 
 console.log("");
+console.log("=== Part 2b: the sign-off follows the studio identity (leak F17) ===");
+const savedSignOffEnv = Object.fromEntries(SIGN_OFF_ENV_KEYS.map((k) => [k, process.env[k]]));
+function clearSignOffEnv() {
+  for (const k of SIGN_OFF_ENV_KEYS) delete process.env[k];
+}
+function setWonkyIdentityEnv() {
+  for (const k of ENV_KEYS) delete process.env[k];
+  process.env.STUDIO_NAME = WONKY.studioName;
+  process.env.STUDIO_EMAIL_LOGO_URL = WONKY.logoUrl;
+  process.env.STUDIO_EMAIL_LOGO_SMALL_URL = WONKY.logoSmallUrl;
+  process.env.STUDIO_EMAIL_ADDRESS_LINE = WONKY.addressLine;
+  process.env.STUDIO_EMAIL_ADDRESS_LINE_COMPACT = WONKY.addressLineCompact;
+  process.env.STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN = WONKY.unsubscribeDomain;
+  process.env.STUDIO_HELLO_ADDRESS = WONKY.contactEmail;
+}
+// Every studio-side check below reads these three fixtures. The branded-shell
+// fixture's own `signoff` PROP is the caller's text ("Thanks so much,\nEmma
+// xx"), which is why the Emma assertions there name the signature image and
+// its alt rather than the word: caller-supplied body text is not identity.
+const SIGN_OFF_SURFACES = ["branded-shell", "email-wrap", "party-confirmation-customer"];
+
+// If the recorded baseline does not itself carry Emma's signature, every
+// "byte-identical" check above is guarding a promise about nothing.
+check(
+  "the recorded Smudge baseline really does carry Emma's signature and her sign-off",
+  SIGN_OFF_SURFACES.every((k) => baseline[k].includes(SMUDGE_DEFAULTS.signatureUrl)) &&
+    baseline["branded-shell"].includes('alt="Emma"') &&
+    baseline["class-confirmation-customer"].includes(SMUDGE_DEFAULTS.signOffName),
+  "the fixture set does not exercise the sign-off at all",
+);
+
+clearSignOffEnv();
+setWonkyIdentityEnv();
+const signOffNoName = renderFixtures(undefined);
+for (const key of SIGN_OFF_SURFACES) {
+  check(
+    `${key}: her identity alone drops Emma's signature image`,
+    !signOffNoName[key].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+      !signOffNoName[key].includes('alt="Emma"'),
+    "Emma's handwriting is still at the foot of another studio's email",
+  );
+}
+check(
+  "branded-shell: with no owner first name configured, the sign-off is her studio's name in plain text",
+  signOffNoName["branded-shell"].includes(`>${WONKY.studioName}</p>`),
+  "no plain-text sign-off replaced the signature image",
+);
+check(
+  "class-confirmation-customer: her identity alone stops the email signing itself Emma",
+  !signOffNoName["class-confirmation-customer"].includes("Emma") &&
+    signOffNoName["class-confirmation-customer"].includes(`>${WONKY.studioName}</p>`),
+  "the class confirmation still signs Emma xx",
+);
+
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+const signOffNamed = renderFixtures(undefined);
+check(
+  "branded-shell: STUDIO_OWNER_FIRST_NAME signs the email, in plain text, with no image",
+  signOffNamed["branded-shell"].includes(`>${TESS.ownerFirstName}</p>`) &&
+    !signOffNamed["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl),
+  "the owner's first name did not reach the sign-off",
+);
+check(
+  "class-confirmation-customer: signs with her first name and NOT with Emma's kisses",
+  signOffNamed["class-confirmation-customer"].includes(`>${TESS.ownerFirstName}</p>`) &&
+    !signOffNamed["class-confirmation-customer"].includes(`${TESS.ownerFirstName} xx`) &&
+    !signOffNamed["class-confirmation-customer"].includes("Emma"),
+  JSON.stringify(signOffNamed["class-confirmation-customer"].slice(-400)),
+);
+check(
+  "party-confirmation-customer: the demo's own email is signed by her, not by Emma",
+  !signOffNamed["party-confirmation-customer"].includes("Emma") &&
+    signOffNamed["party-confirmation-customer"].includes(`>${TESS.ownerFirstName}</p>`),
+  "the party confirmation still carries Emma",
+);
+
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+const signOffImage = renderFixtures(undefined);
+for (const key of SIGN_OFF_SURFACES) {
+  check(
+    `${key}: her own signature image is drawn exactly where Emma's was`,
+    signOffImage[key].includes(`src="${TESS.signatureUrl}" alt="${TESS.ownerFirstName}" width="120"`) &&
+      !signOffImage[key].includes(SMUDGE_DEFAULTS.signatureUrl),
+    "her signature image did not replace Emma's",
+  );
+}
+check(
+  "class-confirmation-customer: its text sign-off is unchanged by a signature image (that shell has never drawn one)",
+  signOffImage["class-confirmation-customer"] === signOffNamed["class-confirmation-customer"],
+  "a signature image leaked into the class confirmation's own shell",
+);
+
+// A malformed or hostile value is treated as unset, never rendered, and never
+// throws: the email still sends, signed in plain text.
+for (const bad of [
+  "http://demo.withsmock.com/sig.png",
+  "javascript:alert(1)",
+  "data:image/png;base64,AAAA",
+  "/email-assets/sig.png",
+  "not a url at all",
+  "   ",
+]) {
+  process.env.STUDIO_EMAIL_SIGNATURE_URL = bad;
+  let malformed;
+  try {
+    malformed = renderFixtures(undefined);
+  } catch (error) {
+    malformed = { error };
+  }
+  const needle = bad.trim();
+  check(
+    `a signature URL of ${JSON.stringify(bad)} is ignored, not rendered`,
+    malformed && !malformed.error &&
+      (needle === "" || !malformed["branded-shell"].includes(needle)) &&
+      !malformed["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+      malformed["branded-shell"].includes(`>${TESS.ownerFirstName}</p>`),
+    malformed?.error ? String(malformed.error) : "the value reached the markup or stopped the render",
+  );
+}
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+
+// An explicit identity decides for itself, whatever this deployment is.
+const explicitSmudgeOnWonkyBox = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (Smudge's explicit identity on a Wonky deployment, sign-off env set)`,
+    explicitSmudgeOnWonkyBox[key] === baseline[key],
+    "a studio's sign-off env reached an email explicitly identified as Smudge's",
+  );
+}
+// The env still holds Tess and her image here, so an explicit ALEX proves the
+// explicit fields are actually read rather than agreeing with the environment.
+const explicitOverridesEnv = renderFixtures({ ...WONKY, ...ALEX });
+check(
+  "an explicit sign-off beats the deployment's own, name and image together",
+  explicitOverridesEnv["branded-shell"].includes(
+    `src="${ALEX.signatureUrl}" alt="${ALEX.ownerFirstName}"`,
+  ) &&
+    !explicitOverridesEnv["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitOverridesEnv["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    explicitOverridesEnv["class-confirmation-customer"].includes(`>${ALEX.ownerFirstName}</p>`),
+  "the explicit sign-off was ignored in favour of the environment's",
+);
+// The defect this pairing rule exists for: a name from one source over an
+// image from another (cold review, 5 Sep 2026).
+const explicitNameOnly = renderFixtures({ ...WONKY, ownerFirstName: ALEX.ownerFirstName });
+check(
+  "an explicit signer who brought no image signs in plain text, never in someone else's hand",
+  explicitNameOnly["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitNameOnly["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitNameOnly["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl),
+  "one person's name was drawn over another person's signature",
+);
+check(
+  "the same override on the class confirmation signs the new name and drops the kisses",
+  explicitNameOnly["class-confirmation-customer"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitNameOnly["class-confirmation-customer"].includes("Emma"),
+  "the class confirmation ignored the explicit signer",
+);
+const explicitBadImage = renderFixtures({
+  ...WONKY,
+  ownerFirstName: ALEX.ownerFirstName,
+  signatureUrl: "http://demo.withsmock.com/alex.png",
+});
+check(
+  "an explicit signer with an unusable image signs in plain text, not in the deployment's hand",
+  explicitBadImage["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !explicitBadImage["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitBadImage["branded-shell"].includes("http://demo.withsmock.com/alex.png"),
+  "an unusable explicit image fell back to another signer's file",
+);
+// Smudge's own build: overriding only the name must not leave Emma's hand on it.
+for (const k of ENV_KEYS) delete process.env[k];
+clearSignOffEnv();
+const smudgeNameOverride = renderFixtures({
+  ...SMUDGE_AS_EXPLICIT_BRANDING,
+  ownerFirstName: ALEX.ownerFirstName,
+});
+check(
+  "overriding the signer on Smudge's own identity removes Emma's handwriting too",
+  smudgeNameOverride["branded-shell"].includes(`>${ALEX.ownerFirstName}</p>`) &&
+    !smudgeNameOverride["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    !smudgeNameOverride["class-confirmation-customer"].includes(SMUDGE_DEFAULTS.signOffName),
+  "Emma's signature survived an explicit change of signer",
+);
+setWonkyIdentityEnv();
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+// Second cold read, 5 Sep 2026: an override that supplies ONLY an unusable
+// image has still spoken about the sign-off. Skipping it handed the email to
+// the deployment's signer, so a broken URL in a caller's own object drew
+// Tess's handwriting.
+const explicitBadImageNoName = renderFixtures({ ...WONKY, signatureUrl: "http://demo.withsmock.com/alex.png" });
+check(
+  "an override that supplies only an unusable image never falls through to another signer's file",
+  !explicitBadImageNoName["branded-shell"].includes(TESS.signatureUrl) &&
+    !explicitBadImageNoName["branded-shell"].includes(SMUDGE_DEFAULTS.signatureUrl) &&
+    explicitBadImageNoName["branded-shell"].includes(`>${WONKY.studioName}</p>`),
+  "a broken signature URL inherited somebody else's signature",
+);
+// A resolved identity handed straight back in is the same identity.
+const roundTrip = renderFixtures(resolveStudioEmailIdentity());
+check(
+  "a resolved identity passed back in resolves to itself",
+  roundTrip["branded-shell"].includes(`src="${TESS.signatureUrl}" alt="${TESS.ownerFirstName}"`) &&
+    roundTrip["class-confirmation-customer"].includes(`>${TESS.ownerFirstName}</p>`),
+  "the identity did not survive a round trip through its own API",
+);
+
+// Smudge's own deployment, naming Emma in env with no signature variable: her
+// handwriting must stay. Deterministic behaviour the second cold read raised
+// as PLAUSIBLE, closed here by the rule that the default's image travels with
+// the default's signer.
+for (const k of ENV_KEYS) delete process.env[k];
+clearSignOffEnv();
+process.env.STUDIO_NAME = SMUDGE_DEFAULTS.studioName;
+process.env.STUDIO_EMAIL_LOGO_URL = SMUDGE_DEFAULTS.logoUrl;
+process.env.STUDIO_EMAIL_LOGO_SMALL_URL = SMUDGE_DEFAULTS.logoSmallUrl;
+process.env.STUDIO_EMAIL_ADDRESS_LINE = SMUDGE_DEFAULTS.addressLineLong;
+process.env.STUDIO_EMAIL_ADDRESS_LINE_COMPACT = SMUDGE_DEFAULTS.addressLineShort;
+process.env.STUDIO_EMAIL_UNSUBSCRIBE_DOMAIN = SMUDGE_DEFAULTS.unsubscribeDomain;
+process.env.STUDIO_HELLO_ADDRESS = SMUDGE_DEFAULTS.contactEmail;
+process.env.STUDIO_OWNER_FIRST_NAME = SMUDGE_DEFAULTS.ownerFirstName;
+const smudgeNamedInEnv = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (Smudge's own env names Emma, no signature variable)`,
+    smudgeNamedInEnv[key] === baseline[key],
+    "naming Emma in env took Emma's handwriting off Smudge's own email",
+  );
+}
+const smudgeNamedInEnvExplicit = renderFixtures(SMUDGE_AS_EXPLICIT_BRANDING);
+check(
+  "the same, with Smudge's explicit branding object on top",
+  Object.keys(baseline).every((key) => smudgeNamedInEnvExplicit[key] === baseline[key]),
+  "explicit Smudge branding over a named env changed Smudge's render",
+);
+
+setWonkyIdentityEnv();
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+
+// Fail closed: a sign-off variable with no email identity behind it must not
+// put a second studio's name or signature on a Smudge-shelled email.
+for (const k of ENV_KEYS) delete process.env[k];
+clearSignOffEnv();
+process.env.STUDIO_NAME = WONKY.studioName;
+process.env.STUDIO_OWNER_FIRST_NAME = TESS.ownerFirstName;
+process.env.STUDIO_EMAIL_SIGNATURE_URL = TESS.signatureUrl;
+const signOffEnvAlone = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(
+    `${key} (sign-off env with no email identity behind it)`,
+    signOffEnvAlone[key] === baseline[key],
+    "a half-configured clone signed a Smudge email with another studio's name",
+  );
+}
+
+clearSignOffEnv();
+for (const k of SIGN_OFF_ENV_KEYS) {
+  if (savedSignOffEnv[k] !== undefined) process.env[k] = savedSignOffEnv[k];
+}
+for (const k of ENV_KEYS) {
+  if (savedEnv[k] === undefined) delete process.env[k];
+  else process.env[k] = savedEnv[k];
+}
+const signOffRestored = renderFixtures(undefined);
+for (const key of Object.keys(baseline)) {
+  check(`${key} (restored env)`, signOffRestored[key] === baseline[key], "env restore left the render changed");
+}
+
+console.log("");
 console.log("=== Part 3: documented out-of-scope literals (informational only, not a failure) ===");
 const outOfScope = {
   "branded-shell / email-wrap": "nav strip + logo href still point at smudgeartspace.com (site routing, not email branding -- out of scope, see L15b.md)",
   "hub-shell / hub-email-wrap": "Hub wordmark, nav and copyright stay Smudge-only -- Hub is not part of a studio clone",
   "class-confirmation-customer": "greeting sentence and the venue \"Location\" card are booking body copy, not identity -- out of scope (the subject line reads the studio's short name since 5 Sep 2026)",
   "party-confirmation-customer": "greeting, venue DetailRow, FAQ text and the catering link are booking body copy -- out of scope",
+  "branded-shell / email-wrap (signoff prop)": "the fixtures pass \"Thanks so much,\\nEmma xx\" as the shell's signoff PROP -- caller-supplied body text, not identity, which is why Part 2b asserts on the signature image and its alt instead. Traced 5 Sep 2026 across both apps at origin/main: every clonable caller passes \"Thanks so much,\" or a warmer line with NO name (stripe-studio gift card, at-home, blueprint, holiday and workshop confirmations, change notices); the one caller that passes \"Emma xx\" is hub-migration.tsx through HubShell, and the Hub is Smudge-only",
+  "class-confirmation-customer (signature image)": "the class shell has never drawn a signature image, so a studio's STUDIO_EMAIL_SIGNATURE_URL does not add one there -- deliberate, keeps Smudge byte-identical and the two shells honest",
 };
 for (const [k, why] of Object.entries(outOfScope)) console.log(`  i  ${k}: ${why}`);
 

@@ -27,6 +27,7 @@ import {
   resolveBranding,
   resolveStudioEmailIdentity,
   resolveStudioShortName,
+  type SignOffBranding,
 } from "./branded";
 import type { StudioBranding, SubjectBranding } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
@@ -80,7 +81,8 @@ export interface ClassConfirmationParams {
    */
   branding?: StudioBranding &
     UnsubscribeBranding &
-    SubjectBranding & {
+    SubjectBranding &
+    SignOffBranding & {
       contactEmail?: string;
       /**
        * Footer address in THIS template's own historical short format
@@ -535,7 +537,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                             margin: 0,
                           }}
                         >
-                          Emma xx
+                          {identity.signOffName}
                         </p>
 
                         {/* Unsubscribe footer (compliance) */}

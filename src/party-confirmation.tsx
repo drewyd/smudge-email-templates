@@ -13,6 +13,7 @@
 import * as React from "react";
 import {
   BrandedShell,
+  type SignOffBranding,
   COLORS,
   DetailRow,
   GreenCard,
@@ -56,7 +57,7 @@ export interface PartyConfirmationParams {
    * Smudge's own wording until the venue/catering data itself is threaded
    * per-studio.
    */
-  branding?: StudioBranding & UnsubscribeBranding & SubjectBranding;
+  branding?: StudioBranding & UnsubscribeBranding & SubjectBranding & SignOffBranding;
 }
 
 export interface PartyConfirmationResult {
