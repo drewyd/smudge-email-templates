@@ -89,8 +89,13 @@ function giftCardStyle(branding?: GiftCardBranding) {
     font: theme.fontDecl,
     tileBg: theme.colors.primary,
     tileInk: theme.fg.onPrimary,
-    /** The soft cream the buyer's note sits on. Smudge's own one-off warm tint. */
-    noteBg: theme.paletteThemed ? theme.colors.pink : "#faf6f0",
+    /**
+     * The soft cream the buyer's note sits on: Smudge's own one-off warm tint,
+     * which is NOT her surface pink. A studio's surface takes its place, but
+     * only when her surface is actually her own -- a theme restating Smudge's
+     * pink must not turn her cream into it (cold review, 6 Sep 2026).
+     */
+    noteBg: theme.colors.pink === COLORS.pink ? "#faf6f0" : theme.colors.pink,
     noteLabel: theme.colors.primary,
     noteInk: COLORS.textLight,
     codeInk: theme.colors.text,

@@ -1050,6 +1050,44 @@ setThemeEnv();
   );
 }
 
+// --- 4h: a theme holding SMUDGE'S OWN values renders like no theme at all ---
+// The counterpart of Part 1b, and the check that was missing. Part 4a proves
+// the UNSET path is byte-identical; nothing proved the SET-to-Smudge's-own-
+// values path, and it was not: the contrast repair and the gift card's cream
+// note ground both keyed on "was a theme supplied" rather than on "did this
+// value actually change", so three emails moved (cold review, 6 Sep 2026).
+clearThemeEnv();
+// Her IDENTITY env is still set from Part 4b; this part is about the THEME
+// alone, so the identity goes back to Smudge's first or every fixture differs
+// for a reason that has nothing to do with the question being asked.
+clearSignOffEnv();
+for (const k of ENV_KEYS) {
+  if (savedEnv[k] === undefined) delete process.env[k];
+  else process.env[k] = savedEnv[k];
+}
+setThemeEnv({
+  NEXT_PUBLIC_STUDIO_COLOR_PRIMARY: "#ec6f86",
+  NEXT_PUBLIC_STUDIO_COLOR_SECONDARY: "#236eaf",
+  NEXT_PUBLIC_STUDIO_COLOR_CTA: "#f37321",
+  NEXT_PUBLIC_STUDIO_COLOR_SUCCESS: "#099f4a",
+  NEXT_PUBLIC_STUDIO_COLOR_INK: "#231f20",
+  NEXT_PUBLIC_STUDIO_COLOR_SURFACE: "#f9c7d8",
+  NEXT_PUBLIC_STUDIO_BACKGROUND_COLOR: "#f0f0f0",
+  NEXT_PUBLIC_STUDIO_FONT_BODY: "'Montserrat', Arial, sans-serif",
+  NEXT_PUBLIC_STUDIO_FONT_HEADING: "'Montserrat', Arial, sans-serif",
+  STUDIO_SITE_URL: "https://www.smudgeartspace.com",
+});
+{
+  const restated = renderFixtures(undefined);
+  for (const key of Object.keys(baseline)) {
+    check(
+      `${key} (theme env restating Smudge's own values)`,
+      restated[key] === baseline[key],
+      "a theme holding Smudge's own values did not render like no theme at all",
+    );
+  }
+}
+
 // --- restore -------------------------------------------------------------
 clearThemeEnv();
 for (const k of THEME_ENV_KEYS) {

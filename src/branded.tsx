@@ -291,8 +291,20 @@ const CONTRAST_FLOOR = 4.5;
  * deployment is warned by role name -- a confirmation the customer has already
  * paid for is never failed over a button colour.
  */
-function readableOn(ground: string, ink: string, unreadable: string[], role: string): string {
+function readableOn(
+  ground: string,
+  ink: string,
+  unreadable: string[],
+  role: keyof EmailPalette,
+): string {
   const white = "#ffffff";
+  // Smudge's own ground keeps white text whatever the ratio says: white on the
+  // apple green is 3.3:1, below AA, and that is a decision about Smudge's brand
+  // an identity ticket may not quietly restyle. Keyed on the VALUE rather than
+  // on whether a theme was set, so a deployment that supplies Smudge's own
+  // hexes renders identically to one that supplies none (cold review,
+  // 6 Sep 2026: it did not, and three emails moved).
+  if (ground.toLowerCase() === SMUDGE_PALETTE[role].toLowerCase()) return white;
   const onWhite = contrastRatio(ground, white);
   if (onWhite >= CONTRAST_FLOOR) return white;
   const onInk = contrastRatio(ground, ink);
@@ -423,25 +435,22 @@ export function resolveEmailTheme(branding?: ThemeBranding): EmailTheme {
     warnTheme(`studio site URL ignored: ${SITE_URL_ENV[0]} must be an absolute https URL`);
   }
 
-  // The contrast repair applies ONLY to a palette a studio actually supplied.
-  // Smudge's own grounds keep white text whatever the ratio says: white on the
-  // apple green is 3.3:1, below AA, and that is a pre-existing decision about
-  // Smudge's own brand, not something an identity ticket may quietly restyle.
-  // Recorded in WC-EMAIL-ASSETS-2026-09-06.md as a Smudge accessibility item.
-  const fg: EmailForegrounds = paletteApplied
-    ? {
-        onPrimary: readableOn(colors.primary, colors.text, unreadable, "primary"),
-        onGreen: readableOn(colors.green, colors.text, unreadable, "success"),
-        onOrange: readableOn(colors.orange, colors.text, unreadable, "cta"),
-        onPink: readableOn(colors.pink, colors.text, unreadable, "surface"),
-      }
-    : DEFAULT_EMAIL_THEME.fg;
+  const fg: EmailForegrounds = {
+    onPrimary: readableOn(colors.primary, colors.text, unreadable, "primary"),
+    onGreen: readableOn(colors.green, colors.text, unreadable, "green"),
+    onOrange: readableOn(colors.orange, colors.text, unreadable, "orange"),
+    onPink: readableOn(colors.pink, colors.text, unreadable, "pink"),
+  };
 
   const theme: EmailTheme = {
     colors,
     fg,
     fontStack,
-    fontDecl: fontsApplied ? "font-family:" + fontStack : F,
+    // F, not the built declaration, whenever the resolved stack is Smudge's
+    // own: F spells Montserrat with no space after each comma and FONT_STACK
+    // spells it with one, so building it would move bytes on a deployment that
+    // merely restated Smudge's own type.
+    fontDecl: fontStack === FONT_STACK ? F : "font-family:" + fontStack,
     headingStack,
     hubDisplayStack: HUB_DISPLAY_STACK,
     siteUrl: site || DEFAULT_EMAIL_THEME.siteUrl,
