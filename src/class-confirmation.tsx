@@ -30,6 +30,7 @@ import {
   resolveStudioShortName,
   resolveEmailTheme,
   DEFAULT_EMAIL_THEME as DEFAULT_CLASS_THEME,
+  giftCardPromoHref,
   type EmailTheme,
   type SignOffBranding,
 } from "./branded";
@@ -592,7 +593,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                           >
                             {giftCardPromo.text}{" "}
                             <a
-                              href={giftCardPromo.url}
+                              href={giftCardPromoHref(emailTheme.siteUrl, giftCardPromo)}
                               style={{ color: COLORS.berry, textDecoration: "underline" }}
                             >
                               {giftCardPromo.linkLabel || "Send a gift card"}

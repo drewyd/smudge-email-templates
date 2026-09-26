@@ -576,19 +576,30 @@ export interface SubjectBranding {
 
 /**
  * A single quiet line a caller may add under the booking details, pointing
- * at a gift card page. Caller-supplied text and URL, deliberately: this
- * package never hardcodes Smudge's own copy or her /book/gift-cards path,
- * so a clone that never passes this prop gets no gift-card line at all
- * (see the FAQ-section `generic`/`null` pattern above for the same reason).
- * Omit the prop and nothing renders -- this is not a default-on feature.
+ * at a gift card page. Caller-supplied text, deliberately: this package
+ * never hardcodes Smudge's own copy (see the FAQ-section `generic`/`null`
+ * pattern above for the same reason). Omit the prop and nothing renders --
+ * this is not a default-on feature.
+ *
+ * `path` is relative and gets resolved against the SAME `theme.siteUrl`
+ * this template already uses for its own logo/nav hrefs (STUDIO_SITE_URL /
+ * NEXT_PUBLIC_STUDIO_SITE_URL, Smudge's own domain as the only default) --
+ * a caller never builds the absolute URL itself, so a clone's own domain
+ * is what a family actually receives, not Smudge's hardcoded one.
  */
 export interface GiftCardPromoLine {
   /** e.g. "Know someone who'd love this?" Rendered before the link, same line. */
   text: string;
-  /** The gift card page, e.g. "https://smudgeartspace.com/book/gift-cards". */
-  url: string;
+  /** Relative to the resolved site root. Defaults to "/book/gift-cards". */
+  path?: string;
   /** Link text. Defaults to "Send a gift card". */
   linkLabel?: string;
+}
+
+/** Joins a theme's resolved siteUrl to a GiftCardPromoLine's path, once, so both templates agree. */
+export function giftCardPromoHref(siteUrl: string, promo: GiftCardPromoLine): string {
+  const path = promo.path || "/book/gift-cards";
+  return `${siteUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 /**

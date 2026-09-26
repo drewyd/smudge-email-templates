@@ -22,6 +22,7 @@ import {
   fmtDate,
   ordinalSuffix,
   renderEmail,
+  giftCardPromoHref,
 } from "./branded";
 import type { StudioBranding, SubjectBranding, ThemeBranding, GiftCardPromoLine } from "./branded";
 import {
@@ -331,7 +332,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
           >
             {giftCardPromo.text}{" "}
             <a
-              href={giftCardPromo.url}
+              href={giftCardPromoHref(emailTheme.siteUrl, giftCardPromo)}
               style={{ color: COLORS.berry, textDecoration: "underline" }}
             >
               {giftCardPromo.linkLabel || "Send a gift card"}
