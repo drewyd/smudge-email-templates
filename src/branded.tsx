@@ -575,6 +575,34 @@ export interface SubjectBranding {
 }
 
 /**
+ * A single quiet line a caller may add under the booking details, pointing
+ * at a gift card page. Caller-supplied text, deliberately: this package
+ * never hardcodes Smudge's own copy (see the FAQ-section `generic`/`null`
+ * pattern above for the same reason). Omit the prop and nothing renders --
+ * this is not a default-on feature.
+ *
+ * `path` is relative and gets resolved against the SAME `theme.siteUrl`
+ * this template already uses for its own logo/nav hrefs (STUDIO_SITE_URL /
+ * NEXT_PUBLIC_STUDIO_SITE_URL, Smudge's own domain as the only default) --
+ * a caller never builds the absolute URL itself, so a clone's own domain
+ * is what a family actually receives, not Smudge's hardcoded one.
+ */
+export interface GiftCardPromoLine {
+  /** e.g. "Know someone who'd love this?" Rendered before the link, same line. */
+  text: string;
+  /** Relative to the resolved site root. Defaults to "/book/gift-cards". */
+  path?: string;
+  /** Link text. Defaults to "Send a gift card". */
+  linkLabel?: string;
+}
+
+/** Joins a theme's resolved siteUrl to a GiftCardPromoLine's path, once, so both templates agree. */
+export function giftCardPromoHref(siteUrl: string, promo: GiftCardPromoLine): string {
+  const path = promo.path || "/book/gift-cards";
+  return `${siteUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
  * The two optional fields a caller may pass on top of StudioBranding to say
  * how this studio signs. Both apps' studioIdentity() already carries an owner
  * first name (STUDIO_OWNER_FIRST_NAME / NEXT_PUBLIC_STUDIO_OWNER_FIRST_NAME),
@@ -1277,6 +1305,14 @@ export interface BrandedShellProps {
    * call site that passes nothing still sign as the studio it belongs to.
    */
   branding?: StudioBranding & SignOffBranding & ThemeBranding;
+  /**
+   * Optional content rendered after the sign-off (signature/name + small
+   * logo), still inside the card, above the copyright/unsubscribe block.
+   * For a quiet line that belongs after "Thanks so much, Emma" rather than
+   * inside the booking content -- e.g. the gift-card promo line the two
+   * confirmation templates pass. Omit and nothing changes.
+   */
+  afterSignoff?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -1285,7 +1321,7 @@ export interface BrandedShellProps {
  * heading, body slot, the owner's sign-off (Emma's signature image on Smudge's
  * own identity) and the footer copyright.
  */
-export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, children }: BrandedShellProps) {
+export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, afterSignoff, children }: BrandedShellProps) {
   const b = resolveBranding(branding);
   const signOff = resolveStudioSignOff(branding);
   // Local names that SHADOW the module-level Smudge constants, so every
@@ -1416,6 +1452,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                           </p>
                         )}
                         <LogoSmall src={b.logoSmallUrl} alt={b.studioName} />
+                        {afterSignoff}
                       </td>
                     </tr>
                   </tbody>

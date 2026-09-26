@@ -22,8 +22,9 @@ import {
   fmtDate,
   ordinalSuffix,
   renderEmail,
+  giftCardPromoHref,
 } from "./branded";
-import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
+import type { StudioBranding, SubjectBranding, ThemeBranding, GiftCardPromoLine } from "./branded";
 import {
   resolveStudioShortName,
   tryResolveStudioEmailIdentity,
@@ -54,6 +55,13 @@ export interface PartyConfirmationParams {
   invitationColor?: string;
   amount: number;
   bookingId?: string;
+  /**
+   * A quiet "know someone who'd love this?" line under the booking details,
+   * pointing at a gift card page. Optional and caller-supplied (see
+   * GiftCardPromoLine in branded.tsx) -- a clone that never passes it gets
+   * no gift-card line at all.
+   */
+  giftCardPromo?: GiftCardPromoLine;
   /**
    * Studio identity for the shared BrandedShell header/footer, the
    * unsubscribe link, and the studio's short name in the customer subject
@@ -281,6 +289,7 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
     cateringDisplay,
     dietaryMedical,
     specialInterests,
+    giftCardPromo,
   } = params;
   const age = resolveAge(params);
   const safeName = (parentName.split(" ")[0] || parentName).trim();
@@ -310,6 +319,27 @@ export function PartyConfirmationEmail(params: PartyConfirmationParams) {
       signoff="We can't wait to celebrate with you!"
       unsubscribeUrl={unsubUrl}
       branding={params.branding}
+      afterSignoff={
+        giftCardPromo ? (
+          <p
+            style={{
+              fontFamily: FONT_STACK,
+              fontWeight: 400,
+              fontSize: "14px",
+              color: COLORS.textLight,
+              margin: "16px 0 0",
+            }}
+          >
+            {giftCardPromo.text}{" "}
+            <a
+              href={giftCardPromoHref(emailTheme.siteUrl, giftCardPromo)}
+              style={{ color: COLORS.berry, textDecoration: "underline" }}
+            >
+              {giftCardPromo.linkLabel || "Send a gift card"}
+            </a>
+          </p>
+        ) : null
+      }
     >
       <p
         style={{

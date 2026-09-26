@@ -30,10 +30,11 @@ import {
   resolveStudioShortName,
   resolveEmailTheme,
   DEFAULT_EMAIL_THEME as DEFAULT_CLASS_THEME,
+  giftCardPromoHref,
   type EmailTheme,
   type SignOffBranding,
 } from "./branded";
-import type { StudioBranding, SubjectBranding, ThemeBranding } from "./branded";
+import type { StudioBranding, SubjectBranding, ThemeBranding, GiftCardPromoLine } from "./branded";
 import { buildUnsubscribeUrl } from "./unsubscribe";
 import type { UnsubscribeBranding } from "./unsubscribe";
 
@@ -83,6 +84,13 @@ export interface ClassConfirmationParams {
   giftCardCode?: string | null;
   sessionStartTime?: string | null;
   sessionEndTime?: string | null;
+  /**
+   * A quiet "know someone who'd love this?" line under the booking details,
+   * pointing at a gift card page. Optional and caller-supplied (see
+   * GiftCardPromoLine in branded.tsx) -- a clone that never passes it gets
+   * no gift-card line at all.
+   */
+  giftCardPromo?: GiftCardPromoLine;
   /**
    * Studio identity for this template's own header/footer chrome (masthead
    * logo, small footer logo, footer address + contact line, unsubscribe
@@ -244,7 +252,7 @@ function resolveGiftCard(params: ClassConfirmationParams):
 /* ----------------------------------------------------------------------- */
 
 export function ClassConfirmationEmail(params: ClassConfirmationParams) {
-  const { parentName, parentEmail, className, children, dates, amountCents, receiptUrl, branding } = params;
+  const { parentName, parentEmail, className, children, dates, amountCents, receiptUrl, giftCardPromo, branding } = params;
 
   const safeParent = (parentName.split(" ")[0] || parentName).trim();
   const childNames = children.map((c) => c.name).join(", ");
@@ -572,6 +580,26 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                         >
                           {identity.signOffName}
                         </p>
+
+                        {giftCardPromo ? (
+                          <p
+                            style={{
+                              fontFamily: FONT_STACK,
+                              fontWeight: 400,
+                              fontSize: "14px",
+                              color: COLORS.textLight,
+                              margin: "16px 0 0",
+                            }}
+                          >
+                            {giftCardPromo.text}{" "}
+                            <a
+                              href={giftCardPromoHref(emailTheme.siteUrl, giftCardPromo)}
+                              style={{ color: COLORS.berry, textDecoration: "underline" }}
+                            >
+                              {giftCardPromo.linkLabel || "Send a gift card"}
+                            </a>
+                          </p>
+                        ) : null}
 
                         {/* Unsubscribe footer (compliance) */}
                         <p
