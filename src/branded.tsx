@@ -575,6 +575,23 @@ export interface SubjectBranding {
 }
 
 /**
+ * A single quiet line a caller may add under the booking details, pointing
+ * at a gift card page. Caller-supplied text and URL, deliberately: this
+ * package never hardcodes Smudge's own copy or her /book/gift-cards path,
+ * so a clone that never passes this prop gets no gift-card line at all
+ * (see the FAQ-section `generic`/`null` pattern above for the same reason).
+ * Omit the prop and nothing renders -- this is not a default-on feature.
+ */
+export interface GiftCardPromoLine {
+  /** e.g. "Know someone who'd love this?" Rendered before the link, same line. */
+  text: string;
+  /** The gift card page, e.g. "https://smudgeartspace.com/book/gift-cards". */
+  url: string;
+  /** Link text. Defaults to "Send a gift card". */
+  linkLabel?: string;
+}
+
+/**
  * The two optional fields a caller may pass on top of StudioBranding to say
  * how this studio signs. Both apps' studioIdentity() already carries an owner
  * first name (STUDIO_OWNER_FIRST_NAME / NEXT_PUBLIC_STUDIO_OWNER_FIRST_NAME),
@@ -1277,6 +1294,14 @@ export interface BrandedShellProps {
    * call site that passes nothing still sign as the studio it belongs to.
    */
   branding?: StudioBranding & SignOffBranding & ThemeBranding;
+  /**
+   * Optional content rendered after the sign-off (signature/name + small
+   * logo), still inside the card, above the copyright/unsubscribe block.
+   * For a quiet line that belongs after "Thanks so much, Emma" rather than
+   * inside the booking content -- e.g. the gift-card promo line the two
+   * confirmation templates pass. Omit and nothing changes.
+   */
+  afterSignoff?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -1285,7 +1310,7 @@ export interface BrandedShellProps {
  * heading, body slot, the owner's sign-off (Emma's signature image on Smudge's
  * own identity) and the footer copyright.
  */
-export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, children }: BrandedShellProps) {
+export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, afterSignoff, children }: BrandedShellProps) {
   const b = resolveBranding(branding);
   const signOff = resolveStudioSignOff(branding);
   // Local names that SHADOW the module-level Smudge constants, so every
@@ -1416,6 +1441,7 @@ export function BrandedShell({ heading, signoff, unsubscribeUrl, branding, child
                           </p>
                         )}
                         <LogoSmall src={b.logoSmallUrl} alt={b.studioName} />
+                        {afterSignoff}
                       </td>
                     </tr>
                   </tbody>
