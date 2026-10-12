@@ -127,7 +127,7 @@ function faqSections(opts: { studioShortName: string; berry: string }): FaqSecti
     },
     {
       title: "What to Expect on the Day",
-      body: "Your 2-hour party includes guided art activities tailored to your chosen theme, free play time, and time for cake and food. Our team handles everything so you can enjoy the celebration!",
+      body: "Your party includes guided art activities tailored to your chosen theme, free play time, and time for cake and food. Our team handles everything so you can enjoy the celebration!",
     },
     {
       title: "Catering (Optional)",
