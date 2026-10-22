@@ -1194,8 +1194,8 @@ function studioNav(theme: EmailTheme): NavLink[] {
 
 const HUB_NAV: NavLink[] = [
   { href: `${SITE}/hub`, label: "ART THEMES", color: COLORS.berry },
-  { href: `${SITE}/hub/community`, label: "COMMUNITY", color: COLORS.primary },
-  { href: `${SITE}/hub/gallery`, label: "GALLERY", color: COLORS.green },
+  { href: `${SITE}/hub/gallery`, label: "GALLERY", color: COLORS.primary },
+  { href: `${SITE}/hub/toolkit`, label: "TOOLKIT", color: COLORS.green },
 ];
 
 function NavStrip({ links, theme }: { links: NavLink[] } & WithTheme) {
@@ -1488,7 +1488,8 @@ export interface HubShellProps {
 
 /**
  * Hub-flavoured email shell: same logo header, Georgia serif heading,
- * berry accent, Hub-specific nav (Themes / Community / Gallery),
+ * berry accent, Hub-specific nav (Themes / Gallery / Toolkit; Community
+ * left it 22 Oct 2026 when the Hub boards were hidden),
  * and richer footer with full address + socials.
  */
 export function HubShell({ heading, signoff, branding, children }: HubShellProps) {
