@@ -155,9 +155,11 @@ function faqSections(opts: { studioShortName: string; berry: string }): FaqSecti
       title: "BYO Food & Birthday Cake",
       body: (
         <>
-          You&apos;re welcome to bring your own food and birthday cake. Please note we are a{" "}
-          <strong>nut-free</strong> venue. We supply the plates, napkins and cake knife, so the food
-          and the cake are all you need to bring.
+          You&apos;re welcome to bring your own food and birthday cake. We&apos;re an{" "}
+          <strong>allergy-aware</strong> studio, so please check with your guests&apos; families for
+          any allergies and let us know before the day (we can&apos;t promise any food is free from
+          nuts or other allergens). We supply the plates, napkins and cake knife, so the food and the
+          cake are all you need to bring.
         </>
       ),
     },
