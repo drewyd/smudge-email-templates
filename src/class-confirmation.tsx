@@ -84,6 +84,19 @@ export interface ClassConfirmationParams {
   sessionStartTime?: string | null;
   sessionEndTime?: string | null;
   /**
+   * The amount already written in the studio's own currency ("$45 USD",
+   * "€45 EUR"), 17 Nov 2026. Left out, the email writes dollars and "AUD"
+   * exactly as it always has, which is Smudge's and every Australian studio's.
+   * Display only: `amountCents` stays the figure of record.
+   */
+  amountText?: string;
+  /**
+   * How the studio's country writes a calendar date ("Monday, November 23").
+   * Left out, each date is written day-first by this package's own `fmtDate`,
+   * as before.
+   */
+  formatDate?: (isoDate: string) => string;
+  /**
    * Studio identity for this template's own header/footer chrome (masthead
    * logo, small footer logo, footer address + contact line, unsubscribe
    * line) and the studio's short name in the subject line. The greeting
@@ -436,7 +449,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                               <>
                                 {dates.map((d, i) => (
                                   <React.Fragment key={i}>
-                                    {fmtDate(d)}
+                                    {(params.formatDate ?? fmtDate)(d)}
                                     {i < dates.length - 1 ? <br /> : null}
                                   </React.Fragment>
                                 ))}
@@ -454,7 +467,7 @@ export function ClassConfirmationEmail(params: ClassConfirmationParams) {
                           ) : null}
                           <LabelValue theme={emailTheme}
                             label="Total Paid"
-                            value={`$${amountDollars} AUD`}
+                            value={params.amountText ?? `$${amountDollars} AUD`}
                             marginBottom={false}
                           />
                         </WhiteCard>
@@ -687,13 +700,13 @@ export function ClassConfirmationInternalEmail(params: ClassConfirmationParams) 
       <>
         {dates.map((d, i) => (
           <React.Fragment key={i}>
-            {fmtDate(d)}
+            {(params.formatDate ?? fmtDate)(d)}
             {i < dates.length - 1 ? <br /> : null}
           </React.Fragment>
         ))}
       </>,
     ],
-    ["Amount", `$${amountDollars} AUD`],
+    ["Amount", params.amountText ?? `$${amountDollars} AUD`],
   ];
   if (giftCardLine) rows.push(["Gift Card", giftCardLine]);
   // Local names that SHADOW the module constants above, so every style below
